@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8200
 
-    model_id: str = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+    model_id: str = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
     device: str = "auto"
     dtype: str = "float16"
     eager_load: bool = False

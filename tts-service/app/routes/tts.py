@@ -55,12 +55,15 @@ async def clone(
 
     runner = request.app.state.runner
     started = time.perf_counter()
-    result = runner.clone(
-        text=text,
-        language=language,
-        ref_audio=(audio, int(sr)),
-        ref_text=ref_text,
-    )
+    try:
+        result = runner.clone(
+            text=text,
+            language=language,
+            ref_audio=(audio, int(sr)),
+            ref_text=ref_text,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"inference failed: {e}") from e
     elapsed = time.perf_counter() - started
 
     out = io.BytesIO()

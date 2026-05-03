@@ -50,3 +50,7 @@ server/storage/
 
 # Husky internal
 .husky/_/
+
+# Custom
+**/uv.lock
+assets/
