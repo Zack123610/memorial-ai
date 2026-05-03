@@ -2,6 +2,12 @@
 
 AI-powered farewell video generation for meaningful goodbyes.
 
+## Project Progress Vlog
+
+[![Progress Vlog](https://img.youtube.com/vi/x-LieV4uc4E/0.jpg)](https://youtu.be/x-LieV4uc4E)
+
+Follow along with development updates on YouTube.
+
 ## What is Memorial AI?
 
 Memorial AI creates hyper-personalized farewell videos of the deceased, enabling families to see and hear their loved ones deliver a final message during funeral services or in private. Using just a single photo, a short voice sample, and farewell text, the system generates a realistic talking-head video — offering emotional closure in a way no traditional service can.
