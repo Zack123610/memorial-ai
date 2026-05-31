@@ -25,7 +25,7 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 - **Backend:** Node.js + Express + BullMQ (job queue)
 - **AI Pipeline:** ComfyUI (orchestration)
 - **Voice Cloning:** Qwen TTS (CosyVoice)
-- **Video Generation:** Seedance 2.0 API → Wan 2.2 (self-hosted)
+- **Video Generation:** Aliyun DashScope Wan2.7 i2v (image+audio → talking head) — see [`video-service/`](./video-service/README.md)
 - **Lip Sync:** SadTalker / MuseTalk
 - **Realtime:** Socket.IO for progress updates
 

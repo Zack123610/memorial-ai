@@ -1,0 +1,32 @@
+[project]
+name = "video-service"
+version = "0.1.0"
+description = "Memorial AI video generation service (DashScope Wan2.7 i2v) — FastAPI"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "python-multipart>=0.0.20",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "httpx>=0.27",
+  "python-dotenv>=1.0",
+  "boto3>=1.35",
+]
+
+[dependency-groups]
+dev = [
+  "ruff>=0.7",
+  "pytest>=8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's File/Form/Query/Depends are designed to be called in arg defaults.
+extend-immutable-calls = ["fastapi.File", "fastapi.Form", "fastapi.Query", "fastapi.Depends"]
