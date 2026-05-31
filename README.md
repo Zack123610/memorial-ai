@@ -23,11 +23,11 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 ## Tech Stack
 
 - **Frontend:** React 18 + Vite + TailwindCSS
-- **Backend:** Node.js + Express + BullMQ (job queue)
-- **AI Pipeline:** ComfyUI (orchestration)
-- **Voice Cloning:** Qwen TTS (CosyVoice)
+- **Backend:** Node.js + Express + BullMQ (job queue), orchestrating the AI services over HTTP
+- **AI Pipeline:** Two standalone FastAPI microservices — [`tts-service`](./tts-service/README.md) and [`video-service`](./video-service/README.md)
+- **Voice Cloning:** Qwen3-TTS (`Qwen3-TTS-12Hz-1.7B-CustomVoice`) — see [`tts-service/`](./tts-service/README.md)
 - **Video Generation:** Aliyun DashScope Wan2.7 i2v (image+audio → talking head) — see [`video-service/`](./video-service/README.md)
-- **Lip Sync:** SadTalker / MuseTalk
+- **Lip Sync:** Built into Wan2.7 i2v — audio-driven, no separate lip-sync model
 - **Realtime:** Socket.IO for progress updates
 
 ## Project Milestones
@@ -39,7 +39,7 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 
 ## Getting Started
 
-> **Prerequisites:** Node.js 20+, Python 3.10+, a local GPU (NVIDIA or Apple Silicon), Docker
+> **Prerequisites:** Node.js 20+, Python 3.12+ with [`uv`](https://docs.astral.sh/uv/), Docker. The `video-service` also needs an Aliyun DashScope API key and an S3 bucket; `tts-service` runs the TTS model locally (Apple Silicon / GPU recommended).
 
 ```bash
 # Clone the repo
@@ -64,7 +64,16 @@ This starts:
 - React client → <http://localhost:5173>
 - Express server → <http://localhost:3001> (health: `/api/health`)
 
-ComfyUI runs separately on the host (it needs direct GPU access). See [`comfyui/README.md`](./comfyui/README.md) for install instructions; once running it's expected at <http://localhost:8188>.
+The AI pipeline runs as two standalone FastAPI services that start separately from the client/server. See each service's README for setup:
+
+- **`tts-service`** (Qwen3-TTS voice cloning) → <http://localhost:8200> — see [`tts-service/README.md`](./tts-service/README.md)
+- **`video-service`** (DashScope Wan2.7 i2v) → <http://localhost:8300> — see [`video-service/README.md`](./video-service/README.md)
+
+```bash
+# In separate terminals
+cd tts-service   && uv sync && uv run uvicorn app.main:app --port 8200
+cd video-service && uv sync && uv run uvicorn app.main:app --port 8300
+```
 
 ## Git Workflow
 
