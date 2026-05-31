@@ -4,6 +4,7 @@ AI-powered farewell video generation for meaningful goodbyes.
 
 ## Project Progress Vlog
 
+[![Progress Vlog](https://img.youtube.com/vi/E6X8fCzyvXE/0.jpg)](https://youtu.be/E6X8fCzyvXE)
 [![Progress Vlog](https://img.youtube.com/vi/x-LieV4uc4E/0.jpg)](https://youtu.be/x-LieV4uc4E)
 
 Follow along with development updates on YouTube.
