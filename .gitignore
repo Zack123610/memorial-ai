@@ -34,16 +34,16 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 
-# ComfyUI runtime
-comfyui/runtime/
-comfyui/output/
-comfyui/models/
-comfyui/input/
-comfyui/temp/
+# Python services (uv)
+**/.venv/
+**/__pycache__/
+**/.ruff_cache/
 
 # Uploaded user assets & generated videos
 server/uploads/
 server/storage/
+tts-service/storage/
+video-service/storage/
 
 # PDFs (project docs only)
 *.pdf

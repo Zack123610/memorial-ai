@@ -36,7 +36,7 @@ export default [
     },
   },
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/build/**', 'comfyui/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/build/**', 'tts-service/**', 'video-service/**'],
   },
   prettier,
 ];

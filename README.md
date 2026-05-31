@@ -78,8 +78,7 @@ cd video-service && uv sync && uv run uvicorn app.main:app --port 8300
 ## Git Workflow
 
 - `main` — release / stable
-- `dev` — integration branch
-- `feature/*` — short-lived branches off `dev`
+- `dev-<phase>-<topic>` — short-lived branches off `main` (e.g. `dev-phase1-video-generation`)
 
 See [DEVELOPMENT.md](./DEVELOPMENT.md) for the full development plan, architecture details, and phase breakdown.
 

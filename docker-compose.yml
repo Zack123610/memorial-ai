@@ -8,29 +8,10 @@ services:
       - redis-data:/data
     restart: unless-stopped
 
-  # ComfyUI is intentionally not containerized for local dev:
-  # on macOS / Apple Silicon, GPU passthrough to Docker is unsupported,
-  # so ComfyUI must run natively on the host. See comfyui/README.md.
-  #
-  # On a Linux + NVIDIA host, uncomment and adapt the block below:
-  #
-  # comfyui:
-  #   image: ghcr.io/ai-dock/comfyui:latest
-  #   container_name: memorial-comfyui
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all
-  #             capabilities: [gpu]
-  #   ports:
-  #     - '8188:8188'
-  #   volumes:
-  #     - ./comfyui/workflows:/opt/ComfyUI/user/default/workflows
-  #     - ./comfyui/custom_nodes:/opt/ComfyUI/custom_nodes
-  #     - ./comfyui/models:/opt/ComfyUI/models
-  #     - ./comfyui/output:/opt/ComfyUI/output
+  # The AI pipeline (tts-service, video-service) runs as native FastAPI
+  # services rather than containers: tts-service needs local GPU / Apple
+  # Silicon MPS access, and video-service calls cloud DashScope. See each
+  # service's README for how to run them.
 
 volumes:
   redis-data:
