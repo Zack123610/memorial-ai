@@ -108,31 +108,31 @@ The hardest part: get the AI pipeline working end-to-end before building any UI.
 
 ---
 
-### Phase 2 — Backend API & Job System (Weeks 5–6)
+### Phase 2 — Backend API & Job System (Weeks 5–6) ✅ Done
 
-**Step 1: Express API (Week 5)**
+Kept deliberately minimal for the MVP: a single job-creation endpoint, an **in-process** async pipeline with an **in-memory** job store (no BullMQ/Redis yet), and a fixed video prompt. A durable queue and persistence are deferred to a later phase.
 
-| Endpoint              | Method | Description                                 |
-| --------------------- | ------ | ------------------------------------------- |
-| `/api/upload`         | POST   | Multipart upload: image, voice sample, text |
-| `/api/jobs`           | POST   | Create a new video generation job           |
-| `/api/jobs/:id`       | GET    | Get job status + result URL                 |
-| `/api/jobs/:id/video` | GET    | Stream/download the generated video         |
+**Step 1: Express API (Week 5)** ✅
 
-- File upload with Multer (validate image formats, audio formats, file size limits)
-- BullMQ job queue backed by Redis for async processing
-- Worker process that calls `tts-service` then `video-service` to run the pipeline
-- Job status tracking: `queued → processing → voice_cloning → video_generating → completed / failed`
+| Endpoint        | Method | Description                                                                                                 |
+| --------------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| `/api/jobs`     | POST   | Multipart (`image`, `audio`, `refText`, `text`, `language?`) → `202 { jobId, status }`; starts the pipeline |
+| `/api/jobs/:id` | GET    | Job status + result `videoUrl` (the video-service S3 URL) when completed                                    |
 
-**Step 2: Service Orchestration (Week 6)**
+- File upload with Multer (`memoryStorage`); validates `image/*` + `audio/*` content types and enforces `MAX_UPLOAD_MB`
+- In-process async pipeline (fire-and-forget after `202`); `JobStore` holds jobs in memory
+- Job status tracking: `queued → voice_cloning → video_generating → completed / failed`
+- The result video is served directly from the video-service S3 `videoUrl`, so no separate stream/download endpoint is needed for the MVP
 
-- Service clients in Node.js — `TtsClient` (already implemented in `server/src/services/tts.ts`) and a new `VideoClient` for the `video-service` job API
-- Pipeline worker: clone the voice via `tts-service`, then submit the photo + cloned audio + prompt to `video-service` and poll its job until the `video_url` is ready
-- Bridge `video-service` job status (`detail`/stage) into the backend job record
-- Error handling and retry logic across both service calls
-- Socket.IO events to push progress updates to the frontend
+**Step 2: Service Orchestration (Week 6)** ✅
 
-**Deliverable:** Backend API that accepts uploads, queues jobs, orchestrates the two FastAPI services, and returns video results.
+- Service clients in Node.js — `TtsClient` (`server/src/services/tts.ts`) and `VideoClient` (`server/src/services/video.ts`) for the `video-service` job API
+- Pipeline (`server/src/jobs/pipeline.ts`): clone the voice via `tts-service`, submit the photo + cloned audio + a fixed prompt to `video-service`, then poll its job until the `videoUrl` is ready
+- `video-service` job `detail`/stage is bridged into the backend job record as progress
+- Errors at any stage mark the job `failed` with the message
+- Socket.IO pushes every job update to a per-job room (`job:subscribe` → `job:update`)
+
+**Deliverable:** Backend API that accepts uploads, runs the two FastAPI services end-to-end in process, and exposes job status + the result video URL. ✅
 
 ---
 
@@ -211,10 +211,10 @@ memorial-ai/
 │   └── package.json
 ├── server/                     # Express backend
 │   ├── src/
-│   │   ├── routes/             # API route handlers
-│   │   ├── services/           # tts/video service clients, job processor
-│   │   ├── queue/              # BullMQ job definitions & workers
-│   │   ├── middleware/         # Upload, validation, error handling
+│   │   ├── routes/             # API route handlers (health, jobs)
+│   │   ├── services/           # tts/video service clients
+│   │   ├── jobs/               # in-memory job store + pipeline orchestrator
+│   │   ├── middleware/         # Upload (Multer), validation
 │   │   ├── config/             # Environment config
 │   │   └── index.ts
 │   ├── package.json
@@ -251,11 +251,11 @@ memorial-ai/
 
 ## Timeline Summary
 
-| Week  | Phase       | Key Deliverable                                          | Status     |
-| ----- | ----------- | -------------------------------------------------------- | ---------- |
-| 1     | Scaffolding | Dev environment running                                  | ✅ Done    |
-| 2–4   | AI Pipeline | `tts-service` + `video-service` produce a farewell video | ✅ Done    |
-| 5–6   | Backend     | Express API + job queue + service orchestration          | ⏳ Pending |
-| 7–8   | Frontend    | Upload wizard + video result UI                          | ◀ Current  |
-| 9–10  | Polish      | **Milestone 1 MVP complete**                             | ⏳ Pending |
-| 11–14 | Avatar      | **Milestone 2 MVP complete**                             | ⏳ Pending |
+| Week  | Phase       | Key Deliverable                                               | Status     |
+| ----- | ----------- | ------------------------------------------------------------- | ---------- |
+| 1     | Scaffolding | Dev environment running                                       | ✅ Done    |
+| 2–4   | AI Pipeline | `tts-service` + `video-service` produce a farewell video      | ✅ Done    |
+| 5–6   | Backend     | Express API + in-process job pipeline + service orchestration | ✅ Done    |
+| 7–8   | Frontend    | Upload wizard + video result UI                               | ◀ Current  |
+| 9–10  | Polish      | **Milestone 1 MVP complete**                                  | ⏳ Pending |
+| 11–14 | Avatar      | **Milestone 2 MVP complete**                                  | ⏳ Pending |
