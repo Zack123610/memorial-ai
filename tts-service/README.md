@@ -1,6 +1,8 @@
 # tts-service
 
-FastAPI service wrapping **Qwen3-TTS-12Hz-1.7B-CustomVoice** for zero-shot voice cloning. Runs on `:8200`.
+FastAPI service wrapping **Qwen3-TTS-12Hz-1.7B-Base** for zero-shot voice cloning. Runs on `:8200`.
+
+> The **Base** model is used because it supports zero-shot cloning from reference audio. The `CustomVoice` variant only supports predefined speakers and cannot clone a voice.
 
 ## Setup (M1 Pro / Apple Silicon)
 
@@ -32,7 +34,7 @@ The first `/clone` request will download the model weights (~3.8 GB) into the Hu
   "model_loaded": false,
   "device": "mps",
   "dtype": "float16",
-  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 }
 ```
 

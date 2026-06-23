@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     video_default_watermark: bool = False
 
     # --- Async task polling ---
-    video_task_timeout: float = 900.0
-    video_poll_interval: float = 5.0
+    video_task_timeout: float = 600.0
+    video_poll_interval: float = 30.0
 
     # --- S3 (input hosting + output archival) ---
     s3_bucket: str = "img-web-req"
