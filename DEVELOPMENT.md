@@ -136,31 +136,27 @@ Kept deliberately minimal for the MVP: a single job-creation endpoint, an **in-p
 
 ---
 
-### Phase 3 — Frontend Web Application (Weeks 7–8) ◀ Current focus
+### Phase 3 — Frontend Web Application (Weeks 7–8) ✅ Done (core UI)
 
-**Step 1: Core UI (Week 7)**
+Kept minimal: a single-page create form (not a multi-step wizard) and file upload only (no in-browser recording). Routing via `react-router-dom`, styling via the existing Tailwind `memorial` palette, live progress via Socket.IO.
 
-Pages:
+**Step 1: Core UI (Week 7)** ✅
 
-1. **Landing Page** — Hero section explaining the service, CTA to start
-2. **Upload Wizard** (multi-step form):
-   - Step 1: Upload photo of the deceased
-   - Step 2: Upload voice sample (or record in-browser via MediaRecorder API)
-   - Step 3: Enter farewell text (with templates/prompts to help)
-   - Step 4: Preview inputs & confirm
-3. **Processing Page** — Real-time progress bar with status updates via Socket.IO
-4. **Result Page** — Video player (video.js or native), download button, share options
+Routes / pages (`client/src/pages/`):
 
-**Step 2: Polish & UX (Week 8)**
+1. **Landing** (`/`) — hero + "Begin" CTA
+2. **Create** (`/create`) — single form: photo, voice sample (file), transcript of the sample (`refText`), farewell message, language; `POST /api/jobs` → navigates to the job page
+3. **Job** (`/jobs/:id`) — subscribes to Socket.IO (`job:subscribe` → `job:update`) for live status (`queued → voice_cloning → video_generating`); on `completed` shows a native video player + download link; on `failed` shows the error with a retry link
 
-- Responsive design (mobile-first — families may use phones)
-- Dark/muted color palette (appropriate for the subject matter)
-- In-browser voice recording with waveform visualization
-- Text templates: "heartfelt farewell", "family message", "visual will"
-- Error states, loading states, retry UX
-- Input validation (image face detection check, audio length check)
+Supporting code: `services/api.ts` (typed `createJob`/`getJob`), `services/socket.ts` (shared connection), `hooks/useJob.ts` (load + live updates), `components/Page.tsx` (shared shell).
 
-**Deliverable:** Fully functional web app where a user can upload inputs and receive a generated farewell video.
+**Step 2: Polish & UX (Week 8)** — partially done; rest deferred as non-essential
+
+- ✅ Dark/muted palette (existing Tailwind `memorial` theme)
+- ✅ Error / loading states, retry UX, submit validation (required fields)
+- ⏳ Deferred (not needed for the MVP): responsive/mobile tuning, in-browser voice recording + waveform, farewell-text templates, face-detection / audio-length validation
+
+**Deliverable:** Working web app where a user can submit inputs and watch the job progress to a playable farewell video. ✅ (End-to-end generation requires `tts-service` + `video-service` running.)
 
 ---
 
@@ -256,6 +252,6 @@ memorial-ai/
 | 1     | Scaffolding | Dev environment running                                       | ✅ Done    |
 | 2–4   | AI Pipeline | `tts-service` + `video-service` produce a farewell video      | ✅ Done    |
 | 5–6   | Backend     | Express API + in-process job pipeline + service orchestration | ✅ Done    |
-| 7–8   | Frontend    | Upload wizard + video result UI                               | ◀ Current  |
+| 7–8   | Frontend    | Create form + live progress + video result UI                 | ✅ Done    |
 | 9–10  | Polish      | **Milestone 1 MVP complete**                                  | ⏳ Pending |
 | 11–14 | Avatar      | **Milestone 2 MVP complete**                                  | ⏳ Pending |

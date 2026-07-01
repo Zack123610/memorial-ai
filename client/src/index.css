@@ -10,5 +10,56 @@ body,
 
 body {
   font-family: theme('fontFamily.sans');
+  background-color: theme('colors.memorial.bg');
+  color: white;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@layer components {
+  /* Gradient text used for cinematic headlines. */
+  .text-gradient {
+    background-image: linear-gradient(
+      100deg,
+      theme('colors.memorial.accent-bright'),
+      theme('colors.aurora.gold'),
+      theme('colors.memorial.accent-bright')
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Frosted card surface used across the flow. */
+  .glass {
+    background-color: rgb(26 26 32 / 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgb(255 255 255 / 0.08);
+  }
+}
+
+@layer utilities {
+  /* Subtle film grain overlay to add cinematic texture. */
+  .grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+/* Respect users who prefer reduced motion: hold animations on their first
+   frame instead of looping. Important for a memorial context. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

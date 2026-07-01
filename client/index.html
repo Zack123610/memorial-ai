@@ -3,7 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Memorial AI</title>
+    <meta name="theme-color" content="#0f0f12" />
+    <meta
+      name="description"
+      content="Memorial AI creates hyper-personalized farewell videos from a single photo, a short voice sample, and a final message."
+    />
+    <title>Memorial AI — Farewells worth remembering</title>
+
+    <!-- Fonts: Cormorant Garamond (serif display) + Inter (sans) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* Paint the memorial background immediately to avoid a white flash
+         before React + Tailwind hydrate. */
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        background-color: #0f0f12;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
