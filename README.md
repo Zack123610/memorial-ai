@@ -26,7 +26,7 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 - **Frontend:** React 18 + Vite + TailwindCSS
 - **Backend:** Node.js + Express + BullMQ (job queue), orchestrating the AI services over HTTP
 - **AI Pipeline:** Two standalone FastAPI microservices — [`tts-service`](./tts-service/README.md) and [`video-service`](./video-service/README.md)
-- **Voice Cloning:** Qwen3-TTS (`Qwen3-TTS-12Hz-1.7B-Base`) — zero-shot cloning from reference audio; see [`tts-service/`](./tts-service/README.md)
+- **Voice Cloning:** Aliyun DashScope Qwen3-TTS voice cloning (`qwen-voice-enrollment` + `qwen3-tts-vc`) — clones a voice from a reference sample; see [`tts-service/`](./tts-service/README.md)
 - **Video Generation:** Aliyun DashScope Wan2.7 i2v (image+audio → talking head) — see [`video-service/`](./video-service/README.md)
 - **Lip Sync:** Built into Wan2.7 i2v — audio-driven, no separate lip-sync model
 - **Realtime:** Socket.IO for progress updates
@@ -40,7 +40,7 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 
 ## Getting Started
 
-> **Prerequisites:** Node.js 20+, Python 3.12+ with [`uv`](https://docs.astral.sh/uv/), Docker. The `video-service` also needs an Aliyun DashScope API key and an S3 bucket; `tts-service` runs the TTS model locally (Apple Silicon / GPU recommended).
+> **Prerequisites:** Node.js 20+, Python 3.12+ with [`uv`](https://docs.astral.sh/uv/), Docker. Both AI services call Aliyun DashScope, so each needs a `DASHSCOPE_API_KEY`; `video-service` additionally needs an S3 bucket. No GPU is required.
 
 ```bash
 # Clone the repo
@@ -67,7 +67,7 @@ This starts:
 
 The AI pipeline runs as two standalone FastAPI services that start separately from the client/server. See each service's README for setup:
 
-- **`tts-service`** (Qwen3-TTS voice cloning) → <http://localhost:8200> — see [`tts-service/README.md`](./tts-service/README.md)
+- **`tts-service`** (DashScope Qwen3-TTS voice cloning) → <http://localhost:8200> — see [`tts-service/README.md`](./tts-service/README.md)
 - **`video-service`** (DashScope Wan2.7 i2v) → <http://localhost:8300> — see [`video-service/README.md`](./video-service/README.md)
 
 ```bash
