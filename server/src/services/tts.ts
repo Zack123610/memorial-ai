@@ -13,18 +13,23 @@ export interface TtsCloneInput {
 
 export interface TtsCloneOutput {
   audio: Buffer;
+  contentType: string;
   sampleRate: number;
   elapsedSeconds: number;
   refDurationSeconds: number;
   language: TtsLanguage;
+  /** DashScope voice the speech was rendered with, and whether it was reused. */
+  voice: string | null;
+  voiceCached: boolean;
 }
 
 export interface TtsHealth {
   status: string;
-  modelLoaded: boolean;
-  device: string;
-  dtype: string;
-  modelId: string;
+  provider: string;
+  model: string;
+  enrollmentModel: string;
+  apiKeyConfigured: boolean;
+  cachedVoices: number;
 }
 
 export class TtsServiceError extends Error {
@@ -45,17 +50,19 @@ export class TtsClient {
     if (!res.ok) throw new TtsServiceError(await res.text(), res.status);
     const json = (await res.json()) as {
       status: string;
-      model_loaded: boolean;
-      device: string;
-      dtype: string;
-      model_id: string;
+      provider: string;
+      model: string;
+      enrollment_model: string;
+      api_key_configured: boolean;
+      cached_voices: number;
     };
     return {
       status: json.status,
-      modelLoaded: json.model_loaded,
-      device: json.device,
-      dtype: json.dtype,
-      modelId: json.model_id,
+      provider: json.provider,
+      model: json.model,
+      enrollmentModel: json.enrollment_model,
+      apiKeyConfigured: json.api_key_configured,
+      cachedVoices: json.cached_voices,
     };
   }
 
@@ -79,10 +86,13 @@ export class TtsClient {
     const buf = Buffer.from(await res.arrayBuffer());
     return {
       audio: buf,
+      contentType: res.headers.get('Content-Type')?.split(';')[0] ?? 'audio/wav',
       sampleRate: Number(res.headers.get('X-Sample-Rate') ?? 0),
       elapsedSeconds: Number(res.headers.get('X-Elapsed-Seconds') ?? 0),
       refDurationSeconds: Number(res.headers.get('X-Ref-Duration-Seconds') ?? 0),
       language: (res.headers.get('X-Language') as TtsLanguage) ?? 'English',
+      voice: res.headers.get('X-Voice'),
+      voiceCached: res.headers.get('X-Voice-Cached') === 'true',
     };
   }
 }
