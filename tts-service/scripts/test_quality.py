@@ -5,6 +5,9 @@ Usage:
 
 Outputs land in storage/quality_test/<duration>s.wav with timing in stdout.
 This calls the running tts-service over HTTP — start it first with `uv run python -m app.main`.
+
+Each slice is a distinct sample, so each one costs a separate DashScope voice
+enrollment; the service deletes them again when it shuts down.
 """
 
 from __future__ import annotations

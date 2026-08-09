@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import io
 import time
 from typing import Annotated
 
-import numpy as np
-import soundfile as sf
+import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 
-from ..config import settings
+from .. import audio as audio_utils
+from ..audio import RefAudioError
+from ..config import Settings
+from ..dashscope import DashScopeError, DashScopeTtsClient
+from ..schemas import LANGUAGE_CODES, SUPPORTED_LANGUAGES
+from ..voices import VoiceRegistry
 
 router = APIRouter()
-
-SUPPORTED_LANGUAGES = {"English", "Chinese"}
 
 
 @router.post(
@@ -23,13 +24,19 @@ SUPPORTED_LANGUAGES = {"English", "Chinese"}
 )
 async def clone(
     request: Request,
-    ref_audio: Annotated[UploadFile, File(description="Reference voice sample (WAV/MP3)")],
+    ref_audio: Annotated[UploadFile, File(description="Reference voice sample (WAV/MP3/M4A)")],
     ref_text: Annotated[str, Form(description="Transcript of the reference audio")],
     text: Annotated[str, Form(description="Target text to synthesize")],
-    language: Annotated[str, Form(description="English or Chinese")] = "English",
+    language: Annotated[str, Form(description=f"One of {SUPPORTED_LANGUAGES}")] = "English",
 ) -> Response:
+    settings: Settings = request.app.state.settings
+    client: DashScopeTtsClient = request.app.state.dashscope
+    registry: VoiceRegistry = request.app.state.voices
+
+    if not settings.dashscope_api_key:
+        raise HTTPException(503, "DASHSCOPE_API_KEY not configured")
     if language not in SUPPORTED_LANGUAGES:
-        raise HTTPException(400, f"language must be one of {sorted(SUPPORTED_LANGUAGES)}")
+        raise HTTPException(400, f"language must be one of {SUPPORTED_LANGUAGES}")
     if not ref_text.strip():
         raise HTTPException(400, "ref_text required (transcript of the reference audio)")
     if not text.strip():
@@ -37,46 +44,62 @@ async def clone(
 
     raw = await ref_audio.read()
     try:
-        audio, sr = sf.read(io.BytesIO(raw), dtype="float32", always_2d=False)
-    except Exception as e:
-        raise HTTPException(400, f"could not decode ref_audio: {e}") from e
-
-    if audio.ndim == 2:
-        audio = audio.mean(axis=1)
-    duration = len(audio) / sr
-    if duration < settings.min_ref_seconds:
-        raise HTTPException(
-            400, f"ref_audio too short: {duration:.1f}s < {settings.min_ref_seconds}s"
+        reference = audio_utils.prepare(
+            raw,
+            content_type=ref_audio.content_type,
+            filename=ref_audio.filename,
+            max_bytes=settings.tts_max_ref_bytes,
+            min_seconds=settings.tts_min_ref_seconds,
+            max_seconds=settings.tts_max_ref_seconds,
         )
-    if duration > settings.max_ref_seconds:
-        raise HTTPException(
-            400, f"ref_audio too long: {duration:.1f}s > {settings.max_ref_seconds}s"
-        )
+    except RefAudioError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
-    runner = request.app.state.runner
+    language_code = LANGUAGE_CODES.get(language)
+    enrollment_text = ref_text.strip() if settings.tts_send_ref_text else None
+    cache_key = VoiceRegistry.key(
+        audio_digest=reference.digest,
+        target_model=settings.tts_dashscope_model,
+        language_code=language_code,
+        ref_text=enrollment_text or "",
+    )
+
     started = time.perf_counter()
     try:
-        result = runner.clone(
-            text=text,
-            language=language,
-            ref_audio=(audio, int(sr)),
-            ref_text=ref_text,
+        voice, cached = await registry.get_or_create(
+            cache_key=cache_key,
+            audio_data_uri=reference.to_data_uri(),
+            language_code=language_code,
+            ref_text=enrollment_text,
         )
-    except Exception as e:
-        raise HTTPException(500, f"inference failed: {e}") from e
+        synthesis = await client.synthesize(text=text, voice=voice.name, language_type=language)
+        data, content_type = await client.fetch_audio(synthesis.audio_url)
+    except DashScopeError as exc:
+        raise HTTPException(502, f"dashscope: {exc}") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"dashscope request failed: {exc}") from exc
     elapsed = time.perf_counter() - started
 
-    out = io.BytesIO()
-    sf.write(out, np.asarray(result.audio), result.sample_rate, format="WAV", subtype="PCM_16")
-    out.seek(0)
+    _, sample_rate = audio_utils.probe(data)
+
+    headers = {
+        "X-Elapsed-Seconds": f"{elapsed:.3f}",
+        "X-Language": language,
+        "X-Voice": voice.name,
+        "X-Voice-Cached": "true" if cached else "false",
+        "X-Model": settings.tts_dashscope_model,
+    }
+    if sample_rate:
+        headers["X-Sample-Rate"] = str(sample_rate)
+    if reference.duration_seconds is not None:
+        headers["X-Ref-Duration-Seconds"] = f"{reference.duration_seconds:.3f}"
+    if voice.fallback_mode:
+        headers["X-Voice-Fallback"] = voice.fallback_reason or "true"
+    if synthesis.request_id:
+        headers["X-Dashscope-Request-Id"] = synthesis.request_id
 
     return Response(
-        content=out.getvalue(),
-        media_type="audio/wav",
-        headers={
-            "X-Sample-Rate": str(result.sample_rate),
-            "X-Elapsed-Seconds": f"{elapsed:.3f}",
-            "X-Ref-Duration-Seconds": f"{duration:.3f}",
-            "X-Language": language,
-        },
+        content=data,
+        media_type=content_type if content_type.startswith("audio/") else "audio/wav",
+        headers=headers,
     )
