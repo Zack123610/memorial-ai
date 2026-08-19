@@ -2,11 +2,13 @@
 
 ## Project Summary
 
-Memorial AI generates hyper-personalized farewell videos of the deceased using a single photo, a voice sample, and farewell text. The system clones the voice (Qwen3-TTS) and generates a realistic, audio-driven talking-head video (Aliyun DashScope **Wan2.7 i2v**), delivering the result through a web application.
+Memorial AI generates hyper-personalized farewell videos of the deceased using a single photo, a voice sample, and farewell text. The system clones the voice (Aliyun DashScope **Qwen3-TTS voice cloning**) and generates a realistic, audio-driven talking-head video (Aliyun DashScope **Wan2.7 i2v**), delivering the result through a web application.
 
 The AI pipeline runs as two standalone **FastAPI microservices** — [`tts-service`](./tts-service/README.md) and [`video-service`](./video-service/README.md) — which the Express backend orchestrates over HTTP. The React + Vite frontend drives the user experience.
 
 > **Architecture note:** earlier drafts of this plan routed the pipeline through **ComfyUI** and used the **Seedance 2.0** API for video. Both have been dropped. ComfyUI is replaced by the two FastAPI services above, and video generation is now Aliyun DashScope Wan2.7 i2v. Because Wan2.7 i2v is audio-driven, lip-sync is handled inside the video model — there is no separate SadTalker/MuseTalk/Wav2Lip step.
+
+> **Voice-cloning note:** `tts-service` originally ran `Qwen3-TTS-12Hz-1.7B-Base` locally on Apple Silicon. It now calls DashScope's hosted Qwen3-TTS voice cloning instead, so no service needs a GPU and both AI services share one API key. This is a trial swap — the `POST /clone` contract is unchanged, so the backend pipeline is unaffected and the local runner can be restored from git history if the hosted quality or cost does not hold up.
 
 ---
 
@@ -25,8 +27,8 @@ The AI pipeline runs as two standalone **FastAPI microservices** — [`tts-servi
        │ HTTP                                  │ HTTP
 ┌──────▼─────────────────────┐   ┌────────────▼─────────────────────────┐
 │  tts-service  (:8200)      │   │  video-service  (:8300)               │
-│  FastAPI · Qwen3-TTS       │   │  FastAPI                              │
-│  (local, Apple Silicon)    │   │  Aliyun DashScope Wan2.7 i2v (cloud)  │
+│  FastAPI · DashScope       │   │  FastAPI                              │
+│  Qwen3-TTS (cloud)         │   │  Aliyun DashScope Wan2.7 i2v (cloud)  │
 │  voice sample → cloned WAV │   │  image + audio → talking-head video   │
 └────────────────────────────┘   │  hosts inputs/outputs on S3,          │
                                   │  submits + polls async DashScope task │
@@ -42,17 +44,17 @@ The AI pipeline runs as two standalone **FastAPI microservices** — [`tts-servi
 
 ## Tech Stack
 
-| Layer            | Technology                                                          | Purpose                                                      |
-| ---------------- | ------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Frontend         | React 18 + Vite + TailwindCSS                                       | SPA with upload wizard, progress tracking, video preview     |
-| Backend          | Node.js + Express + BullMQ                                          | REST API, job queue, file handling, AI-service orchestration |
-| AI Pipeline      | FastAPI microservices (`tts-service`, `video-service`)              | Standalone Python services the backend calls over HTTP       |
-| Voice Cloning    | Qwen3-TTS (`Qwen3-TTS-12Hz-1.7B-CustomVoice`)                       | Zero-shot voice cloning from a short reference sample        |
-| Video Generation | Aliyun DashScope **Wan2.7 i2v** (cloud) → self-hosted Wan (Phase 5) | Audio-driven image-to-video talking-head generation          |
-| Lip Sync         | Built into Wan2.7 i2v (audio-driven)                                | No separate model; the driving audio animates the mouth      |
-| Database         | SQLite (MVP) → PostgreSQL (prod)                                    | Job metadata, user sessions                                  |
-| Storage          | Local filesystem (MVP) → S3 (prod)                                  | Uploaded assets + generated videos                           |
-| Realtime         | Socket.IO                                                           | Progress updates from backend to frontend                    |
+| Layer            | Technology                                                            | Purpose                                                      |
+| ---------------- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Frontend         | React 18 + Vite + TailwindCSS                                         | SPA with upload wizard, progress tracking, video preview     |
+| Backend          | Node.js + Express + BullMQ                                            | REST API, job queue, file handling, AI-service orchestration |
+| AI Pipeline      | FastAPI microservices (`tts-service`, `video-service`)                | Standalone Python services the backend calls over HTTP       |
+| Voice Cloning    | Aliyun DashScope Qwen3-TTS (`qwen-voice-enrollment` + `qwen3-tts-vc`) | Cloud voice cloning from a short reference sample            |
+| Video Generation | Aliyun DashScope **Wan2.7 i2v** (cloud) → self-hosted Wan (Phase 5)   | Audio-driven image-to-video talking-head generation          |
+| Lip Sync         | Built into Wan2.7 i2v (audio-driven)                                  | No separate model; the driving audio animates the mouth      |
+| Database         | SQLite (MVP) → PostgreSQL (prod)                                      | Job metadata, user sessions                                  |
+| Storage          | Local filesystem (MVP) → S3 (prod)                                    | Uploaded assets + generated videos                           |
+| Realtime         | Socket.IO                                                             | Progress updates from backend to frontend                    |
 
 ---
 
@@ -60,13 +62,13 @@ The AI pipeline runs as two standalone **FastAPI microservices** — [`tts-servi
 
 ### Phase 0 — Project Scaffolding & Environment (Week 1) ✅ Done
 
-| Task                | Details                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------- |
-| Monorepo setup      | `/client` (React+Vite), `/server` (Express), `/tts-service` + `/video-service` (FastAPI) |
-| Dev environment     | `uv` per Python service; Docker Compose for Redis; local GPU (Apple Silicon MPS) for TTS |
-| Service scaffolding | FastAPI apps for voice cloning and video generation                                      |
-| CI basics           | ESLint, Prettier, Husky pre-commit hooks; `ruff` for the Python services                 |
-| Git workflow        | `main` → `dev-<phase>-<topic>` branches                                                  |
+| Task                | Details                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| Monorepo setup      | `/client` (React+Vite), `/server` (Express), `/tts-service` + `/video-service` (FastAPI)  |
+| Dev environment     | `uv` per Python service; Docker Compose for Redis; DashScope API key for both AI services |
+| Service scaffolding | FastAPI apps for voice cloning and video generation                                       |
+| CI basics           | ESLint, Prettier, Husky pre-commit hooks; `ruff` for the Python services                  |
+| Git workflow        | `main` → `dev-<phase>-<topic>` branches                                                   |
 
 **Deliverable:** Running dev environment with `tts-service` at `localhost:8200`, `video-service` at `localhost:8300`, Express at `localhost:3001`, React at `localhost:5173`.
 
@@ -78,7 +80,7 @@ The hardest part: get the AI pipeline working end-to-end before building any UI.
 
 **Step 1: Voice Cloning Service — `tts-service` (Week 2)** ✅
 
-- Standalone FastAPI service wrapping **Qwen3-TTS** (`Qwen3-TTS-12Hz-1.7B-CustomVoice`) for zero-shot voice cloning; runs on `:8200` (Apple Silicon MPS, `float16`)
+- Standalone FastAPI service for voice cloning on `:8200`. First built around a local **Qwen3-TTS** checkpoint (Apple Silicon MPS, `float16`), then reimplemented against **DashScope Qwen3-TTS voice cloning** — enroll a voice from the reference sample, synthesize with it, return the audio
 - `POST /clone` (multipart): `ref_audio` + `ref_text` + `text` + `language` → `audio/wav`
 - `scripts/test_quality.py` slices a reference into 5s/15s/30s clips to find the minimum sample length for acceptable quality
 - Output: WAV file with the cloned voice speaking the farewell text
@@ -215,9 +217,9 @@ memorial-ai/
 │   │   └── index.ts
 │   ├── package.json
 │   └── tsconfig.json
-├── tts-service/                # FastAPI · Qwen3-TTS voice cloning (:8200)
-│   ├── app/                    # FastAPI app, runner, config
-│   ├── scripts/                # quality-threshold test
+├── tts-service/                # FastAPI · DashScope Qwen3-TTS voice cloning (:8200)
+│   ├── app/                    # main, routes, dashscope, voices, audio, config
+│   ├── scripts/                # DashScope probe + quality-threshold test
 │   └── pyproject.toml          # uv-managed deps
 ├── video-service/              # FastAPI · DashScope Wan2.7 i2v (:8300)
 │   ├── app/                    # main, routes, dashscope, storage, jobs, schemas
@@ -233,15 +235,16 @@ memorial-ai/
 
 ## Risk Register
 
-| Risk                                      | Impact | Mitigation                                                                                                      |
-| ----------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| DashScope Wan2.7 i2v quality/latency/cost | High   | Tested in Phase 1; tune resolution/duration; self-hosted Wan as Phase 5 fallback                                |
-| Cloud dependency (DashScope, S3)          | Medium | Requires public S3 for inputs + outbound DashScope access; expiring result URLs mitigated by re-archiving to S3 |
-| Voice cloning quality with short samples  | High   | Require minimum 15s sample; offer recording guidance                                                            |
-| Lip sync artifacts ("uncanny valley")     | Medium | Audio-driven Wan2.7 i2v handles lip sync; tune prompt/duration if artifacts appear                              |
-| GPU requirements for local demo           | Medium | Video runs in the cloud (DashScope); only TTS runs locally (Apple Silicon MPS)                                  |
-| Ethical concerns / deepfake misuse        | High   | Require consent verification; add watermarks; terms of service                                                  |
-| Solo developer bandwidth                  | Medium | Prioritize ruthlessly; cut Milestone 2 scope if needed                                                          |
+| Risk                                      | Impact | Mitigation                                                                                                                                                                                           |
+| ----------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DashScope Wan2.7 i2v quality/latency/cost | High   | Tested in Phase 1; tune resolution/duration; self-hosted Wan as Phase 5 fallback                                                                                                                     |
+| Cloud dependency (DashScope, S3)          | High   | Both AI services now depend on DashScope; requires public S3 for video inputs + outbound DashScope access; expiring result URLs mitigated by re-archiving (video) and returning bytes inline (audio) |
+| DashScope voice quota / cloning cost      | Medium | Enrollments are cached per reference sample and deleted on shutdown; revert to the local Qwen3-TTS runner if limits bite                                                                             |
+| Voice cloning quality with short samples  | High   | Require minimum 15s sample; offer recording guidance                                                                                                                                                 |
+| Lip sync artifacts ("uncanny valley")     | Medium | Audio-driven Wan2.7 i2v handles lip sync; tune prompt/duration if artifacts appear                                                                                                                   |
+| GPU requirements for local demo           | Low    | Both voice cloning and video generation run in the cloud (DashScope); nothing needs a local GPU                                                                                                      |
+| Ethical concerns / deepfake misuse        | High   | Require consent verification; add watermarks; terms of service                                                                                                                                       |
+| Solo developer bandwidth                  | Medium | Prioritize ruthlessly; cut Milestone 2 scope if needed                                                                                                                                               |
 
 ---
 

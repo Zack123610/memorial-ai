@@ -9,9 +9,9 @@ services:
     restart: unless-stopped
 
   # The AI pipeline (tts-service, video-service) runs as native FastAPI
-  # services rather than containers: tts-service needs local GPU / Apple
-  # Silicon MPS access, and video-service calls cloud DashScope. See each
-  # service's README for how to run them.
+  # services rather than containers: both are thin clients over cloud
+  # DashScope and are iterated on directly with uv. See each service's
+  # README for how to run them.
 
 volumes:
   redis-data:

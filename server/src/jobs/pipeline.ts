@@ -6,6 +6,13 @@ import type { JobStore } from './store.js';
 const DEFAULT_VIDEO_PROMPT =
   'A person speaking warmly and calmly to the camera, gentle natural head movement, soft even lighting.';
 
+const AUDIO_EXTENSIONS: Record<string, string> = {
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+};
+
 export interface UploadedFile {
   buffer: Buffer;
   filename: string;
@@ -48,13 +55,14 @@ export async function runPipeline(
     });
 
     store.update(jobId, { status: 'video_generating', detail: 'Submitting to video service' });
+    const clonedExt = AUDIO_EXTENSIONS[cloned.contentType] ?? 'wav';
     const { jobId: videoJobId } = await video.submit({
       image: input.image.buffer,
       imageFilename: input.image.filename,
       imageMimeType: input.image.mimetype,
       audio: cloned.audio,
-      audioFilename: 'cloned.wav',
-      audioMimeType: 'audio/wav',
+      audioFilename: `cloned.${clonedExt}`,
+      audioMimeType: cloned.contentType,
       prompt: DEFAULT_VIDEO_PROMPT,
     });
 
