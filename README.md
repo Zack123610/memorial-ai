@@ -81,7 +81,17 @@ cd video-service && uv sync && uv run uvicorn app.main:app --port 8300
 - `main` — release / stable
 - `dev-<phase>-<topic>` — short-lived branches off `main` (e.g. `dev-phase1-video-generation`)
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for the full development plan, architecture details, and phase breakdown.
+## Testing
+
+```bash
+# Unit checks + API validation (start the Express server for API checks)
+npm run test:e2e
+
+# Optional full generation against DashScope (uses credits)
+E2E_LIVE=1 npm run test:e2e
+```
+
+Demo checklist: [docs/DEMO.md](./docs/DEMO.md). Full plan: [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ## License
 

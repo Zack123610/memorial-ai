@@ -162,18 +162,20 @@ Supporting code: `services/api.ts` (typed `createJob`/`getJob`), `services/socke
 
 ---
 
-### Phase 4 — Integration Testing & MVP Polish (Weeks 9–10)
+### Phase 4 — Integration Testing & MVP Polish (Weeks 9–10) ✅ Done (MVP scope)
 
-| Task               | Details                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| End-to-end testing | Full flow: upload → queue → generate → download                                       |
-| Edge cases         | No face detected, poor audio quality, very long text                                  |
-| Performance        | Optimize video generation time, add caching                                           |
-| Quality tuning     | Adjust TTS parameters, video resolution, lip sync accuracy                            |
-| Demo preparation   | Record demo video, prepare presentation materials                                     |
-| Error recovery     | Handle service crashes, DashScope/API timeouts, and dropped in-memory jobs gracefully |
+| Task               | Details                                                                                                                                     | Status |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| End-to-end testing | `npm run test:e2e` — unit checks + API validation; `E2E_LIVE=1` runs full upload → poll → `videoUrl`                                        | ✅     |
+| Edge cases         | Max farewell/ref-text length; client audio duration probe (3–60s); face-related DashScope failures mapped to a friendly photo hint          | ✅     |
+| Performance        | Video duration derived from cloned audio (clamped 5–10s); TTS enrollment cache already in place; result-video content cache deferred        | ✅     |
+| Quality tuning     | Express forwards `VIDEO_RESOLUTION` / duration / prompt_extend / watermark; talking-head prompt tightened for lip sync                      | ✅     |
+| Demo preparation   | Checklist + script in [`docs/DEMO.md`](./docs/DEMO.md) (recording left to the presenter)                                                    | ✅     |
+| Error recovery     | Fetch timeouts + one downstream retry; aggregated `/api/health`; REST poll fallback; `JOB_EXPIRED` when in-memory jobs vanish after restart | ✅     |
 
-**Deliverable: Milestone 1 MVP** — Web application that generates farewell videos with the deceased speaking their wills.
+**Deferred (post-MVP):** BullMQ persistence, ML face detection, output video caching, Playwright UI suite.
+
+**Deliverable: Milestone 1 MVP** — Web application that generates farewell videos with the deceased speaking their wills. ✅
 
 ---
 
@@ -256,5 +258,5 @@ memorial-ai/
 | 2–4   | AI Pipeline | `tts-service` + `video-service` produce a farewell video      | ✅ Done    |
 | 5–6   | Backend     | Express API + in-process job pipeline + service orchestration | ✅ Done    |
 | 7–8   | Frontend    | Create form + live progress + video result UI                 | ✅ Done    |
-| 9–10  | Polish      | **Milestone 1 MVP complete**                                  | ⏳ Pending |
+| 9–10  | Polish      | **Milestone 1 MVP complete**                                  | ✅ Done    |
 | 11–14 | Avatar      | **Milestone 2 MVP complete**                                  | ⏳ Pending |

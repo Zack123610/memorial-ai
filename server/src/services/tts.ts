@@ -1,4 +1,5 @@
 import { config } from '../config/env.js';
+import { fetchWithTimeout, withRetry } from '../lib/fetch.js';
 
 export type TtsLanguage = 'English' | 'Chinese';
 
@@ -43,10 +44,14 @@ export class TtsServiceError extends Error {
 }
 
 export class TtsClient {
-  constructor(private readonly baseUrl: string = config.ttsServiceUrl) {}
+  constructor(
+    private readonly baseUrl: string = config.ttsServiceUrl,
+    private readonly timeoutMs: number = config.http.ttsTimeoutMs,
+    private readonly retries: number = config.http.maxRetries,
+  ) {}
 
   async health(): Promise<TtsHealth> {
-    const res = await fetch(`${this.baseUrl}/health`);
+    const res = await fetchWithTimeout(`${this.baseUrl}/health`, {}, config.http.healthTimeoutMs);
     if (!res.ok) throw new TtsServiceError(await res.text(), res.status);
     const json = (await res.json()) as {
       status: string;
@@ -67,6 +72,13 @@ export class TtsClient {
   }
 
   async clone(input: TtsCloneInput): Promise<TtsCloneOutput> {
+    return withRetry(() => this.cloneOnce(input), {
+      retries: this.retries,
+      label: 'tts.clone',
+    });
+  }
+
+  private async cloneOnce(input: TtsCloneInput): Promise<TtsCloneOutput> {
     const form = new FormData();
     const blob =
       input.refAudio instanceof Blob
@@ -77,7 +89,20 @@ export class TtsClient {
     form.append('text', input.text);
     form.append('language', input.language ?? 'English');
 
-    const res = await fetch(`${this.baseUrl}/clone`, { method: 'POST', body: form });
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        `${this.baseUrl}/clone`,
+        { method: 'POST', body: form },
+        this.timeoutMs,
+      );
+    } catch (err) {
+      throw new TtsServiceError(
+        err instanceof Error ? err.message : 'tts-service request failed',
+        504,
+      );
+    }
+
     if (!res.ok) {
       const detail = await res.text().catch(() => '<no body>');
       throw new TtsServiceError(`tts-service ${res.status}: ${detail}`, res.status);
