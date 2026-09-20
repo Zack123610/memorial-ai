@@ -29,7 +29,7 @@ export default function Job() {
   const { id = '' } = useParams();
   const { job, error, expired } = useJob(id);
 
-  if (error) {
+  if (error && !job) {
     return (
       <Page>
         <motion.div variants={stagger} initial="hidden" animate="show" className="text-center">

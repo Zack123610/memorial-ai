@@ -62,13 +62,6 @@ export class VideoClient {
   }
 
   async submit(input: VideoSubmitInput): Promise<{ jobId: string }> {
-    return withRetry(() => this.submitOnce(input), {
-      retries: this.retries,
-      label: 'video.submit',
-    });
-  }
-
-  private async submitOnce(input: VideoSubmitInput): Promise<{ jobId: string }> {
     const form = new FormData();
     form.append(
       'image',
@@ -113,6 +106,13 @@ export class VideoClient {
   }
 
   async getStatus(jobId: string): Promise<VideoJob> {
+    return withRetry(() => this.getStatusOnce(jobId), {
+      retries: this.retries,
+      label: 'video.getStatus',
+    });
+  }
+
+  private async getStatusOnce(jobId: string): Promise<VideoJob> {
     let res: Response;
     try {
       res = await fetchWithTimeout(

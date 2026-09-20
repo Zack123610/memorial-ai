@@ -36,6 +36,9 @@ function isRetryable(err: unknown, status?: number): boolean {
 /**
  * Run `fn` once, then retry on transient network/5xx failures.
  * `retries` is the number of *extra* attempts after the first.
+ *
+ * Only wrap idempotent calls (GET/status). A timeout after a POST may mean
+ * the server already accepted the request; retrying would duplicate work.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,

@@ -1,5 +1,5 @@
 import { config } from '../config/env.js';
-import { fetchWithTimeout, withRetry } from '../lib/fetch.js';
+import { fetchWithTimeout } from '../lib/fetch.js';
 
 export type TtsLanguage = 'English' | 'Chinese';
 
@@ -47,7 +47,6 @@ export class TtsClient {
   constructor(
     private readonly baseUrl: string = config.ttsServiceUrl,
     private readonly timeoutMs: number = config.http.ttsTimeoutMs,
-    private readonly retries: number = config.http.maxRetries,
   ) {}
 
   async health(): Promise<TtsHealth> {
@@ -72,13 +71,6 @@ export class TtsClient {
   }
 
   async clone(input: TtsCloneInput): Promise<TtsCloneOutput> {
-    return withRetry(() => this.cloneOnce(input), {
-      retries: this.retries,
-      label: 'tts.clone',
-    });
-  }
-
-  private async cloneOnce(input: TtsCloneInput): Promise<TtsCloneOutput> {
     const form = new FormData();
     const blob =
       input.refAudio instanceof Blob

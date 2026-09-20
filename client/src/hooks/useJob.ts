@@ -17,6 +17,13 @@ export function useJob(id: string): { job: Job | null; error: string | null; exp
     setError(null);
     setExpired(false);
 
+    const applyJob = (j: Job) => {
+      if (!active) return;
+      setJob(j);
+      setError(null);
+      setExpired(false);
+    };
+
     const applyError = (e: unknown) => {
       if (!active) return;
       if (e instanceof ApiError && (e.status === 404 || e.code === 'JOB_EXPIRED')) {
@@ -30,14 +37,12 @@ export function useJob(id: string): { job: Job | null; error: string | null; exp
       setError(e instanceof Error ? e.message : 'Failed to load job');
     };
 
-    getJob(id)
-      .then((j) => active && setJob(j))
-      .catch(applyError);
+    getJob(id).then(applyJob).catch(applyError);
 
     const socket = getSocket();
     const subscribe = () => socket.emit('job:subscribe', id);
     const onUpdate = (j: Job) => {
-      if (j.id === id) setJob(j);
+      if (j.id === id) applyJob(j);
     };
 
     subscribe();
@@ -49,8 +54,7 @@ export function useJob(id: string): { job: Job | null; error: string | null; exp
       if (!active) return;
       void getJob(id)
         .then((j) => {
-          if (!active) return;
-          setJob(j);
+          applyJob(j);
           if (TERMINAL.has(j.status)) window.clearInterval(timer);
         })
         .catch((e: unknown) => {
