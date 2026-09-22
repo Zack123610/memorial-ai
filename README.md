@@ -40,48 +40,97 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 
 ## Getting Started
 
-> **Prerequisites:** Node.js 20+, Python 3.12+ with [`uv`](https://docs.astral.sh/uv/), Docker. Both AI services call Aliyun DashScope, so each needs a `DASHSCOPE_API_KEY`; `video-service` additionally needs an S3 bucket. No GPU is required.
+> **Prerequisites:** Node.js 20+, Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and Docker. Both AI services call Aliyun DashScope, so each needs a `DASHSCOPE_API_KEY`; `video-service` additionally needs an S3 bucket. No GPU is required.
+
+The app is made of **four processes**: the client + Express server (started together by `npm run dev`), plus the `tts-service` and `video-service` FastAPI apps (each started on its own). All four must be running for end-to-end generation.
+
+### 1. Install tooling
 
 ```bash
-# Clone the repo
+# uv (Python package/venv manager for the two AI services)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# then add uv to your PATH for the current shell (or restart your terminal)
+source "$HOME/.local/bin/env"
+
+# verify
+node -v   # v20+
+uv --version
+```
+
+### 2. Get the code and install deps
+
+```bash
 git clone https://github.com/your-username/memorial-ai.git
 cd memorial-ai
 
 # Install all workspace deps (client + server)
 npm install
-
-# Copy env defaults
-cp .env.example .env
-
-# Start Redis (used by BullMQ from Phase 2 onwards)
-docker compose up -d redis
-
-# Run client + server together
-npm run dev
 ```
 
-This starts:
+### 3. Configure environment
 
-- React client → <http://localhost:5173>
-- Express server → <http://localhost:3001> (health: `/api/health`)
-
-The AI pipeline runs as two standalone FastAPI services that start separately from the client/server. See each service's README for setup:
-
-- **`tts-service`** (DashScope Qwen3-TTS voice cloning) → <http://localhost:8200> — see [`tts-service/README.md`](./tts-service/README.md)
-- **`video-service`** (DashScope Wan2.7 i2v) → <http://localhost:8300> — see [`video-service/README.md`](./video-service/README.md)
+Each of the three env files has a matching `.env.example`. Copy all three and fill in the values.
 
 ```bash
-# In separate terminals
-cd tts-service   && uv sync && uv run uvicorn app.main:app --port 8200
-cd video-service && uv sync && uv run uvicorn app.main:app --port 8300
+cp .env.example .env                              # client + Express server
+cp tts-service/.env.example tts-service/.env      # DASHSCOPE_API_KEY
+cp video-service/.env.example video-service/.env  # DASHSCOPE_API_KEY + S3 bucket creds
 ```
+
+### 4. Start everything
+
+Run each command in its **own terminal** and keep them running.
+
+```bash
+# Terminal 1 — Redis (used by BullMQ)
+docker compose up -d redis
+
+# Terminal 2 — React client + Express server
+npm run dev
+
+# Terminal 3 — TTS service (DashScope Qwen3-TTS voice cloning)
+cd tts-service && uv sync && uv run uvicorn app.main:app --host 127.0.0.1 --port 8200
+
+# Terminal 4 — Video service (DashScope Wan2.7 i2v)
+cd video-service && uv sync && uv run uvicorn app.main:app --host 127.0.0.1 --port 8300
+```
+
+Services and their URLs:
+
+| Process                   | URL                     | Notes                                                               |
+| ------------------------- | ----------------------- | ------------------------------------------------------------------- |
+| React client              | <http://localhost:5173> | Falls back to `5174+` if the port is in use                         |
+| Express server            | <http://localhost:3001> | Aggregated health at `/api/health`                                  |
+| `tts-service` (FastAPI)   | <http://localhost:8200> | Health at `/health`; see [README](./tts-service/README.md)          |
+| `video-service` (FastAPI) | <http://localhost:8300> | Health at `/api/v1/health`; see [README](./video-service/README.md) |
+
+### 5. Verify
+
+```bash
+# Should report status "ok" with both downstream services "ok"
+curl http://localhost:3001/api/health
+```
+
+If `tts` or `video` shows `down`, that service isn't running (or its `.env`/`DASHSCOPE_API_KEY` is missing) — the pipeline will fail at the clone/submit step with a `fetch failed` (504) error until both are up.
+
+Sample inputs (portrait, voice clip + transcript, and a farewell message) are provided in [`data/`](./data) for testing the `/create` form.
 
 ## Git Workflow
 
 - `main` — release / stable
 - `dev-<phase>-<topic>` — short-lived branches off `main` (e.g. `dev-phase1-video-generation`)
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for the full development plan, architecture details, and phase breakdown.
+## Testing
+
+```bash
+# Unit checks + API validation (start the Express server for API checks)
+npm run test:e2e
+
+# Optional full generation against DashScope (uses credits)
+E2E_LIVE=1 npm run test:e2e
+```
+
+Demo checklist: [docs/DEMO.md](./docs/DEMO.md). Full plan: [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ## License
 

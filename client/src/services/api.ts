@@ -18,9 +18,27 @@ export interface CreateJobInput {
   language: 'English' | 'Chinese';
 }
 
-async function readError(res: Response): Promise<string> {
-  const body = (await res.json().catch(() => null)) as { error?: string } | null;
-  return body?.error ?? `Request failed (${res.status})`;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+async function readError(res: Response): Promise<ApiError> {
+  const body = (await res.json().catch(() => null)) as {
+    error?: string;
+    code?: string;
+    hint?: string;
+  } | null;
+  const message = body?.hint
+    ? `${body.error ?? 'Request failed'}. ${body.hint}`
+    : (body?.error ?? `Request failed (${res.status})`);
+  return new ApiError(message, res.status, body?.code);
 }
 
 export async function createJob(
@@ -34,12 +52,12 @@ export async function createJob(
   form.append('language', input.language);
 
   const res = await fetch('/api/jobs', { method: 'POST', body: form });
-  if (!res.ok) throw new Error(await readError(res));
+  if (!res.ok) throw await readError(res);
   return res.json() as Promise<{ jobId: string; status: JobStatus }>;
 }
 
 export async function getJob(id: string): Promise<Job> {
   const res = await fetch(`/api/jobs/${id}`);
-  if (!res.ok) throw new Error(await readError(res));
+  if (!res.ok) throw await readError(res);
   return res.json() as Promise<Job>;
 }
