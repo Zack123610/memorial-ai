@@ -77,7 +77,10 @@ async def clone(
     except DashScopeError as exc:
         raise HTTPException(502, f"dashscope: {exc}") from exc
     except httpx.HTTPError as exc:
-        raise HTTPException(502, f"dashscope request failed: {exc}") from exc
+        # Transport errors often stringify to "", so name the class too.
+        raise HTTPException(
+            502, f"dashscope request failed: {type(exc).__name__}: {exc}"
+        ) from exc
     elapsed = time.perf_counter() - started
 
     _, sample_rate = audio_utils.probe(data)

@@ -159,8 +159,8 @@ def main() -> int:
         print("error: DASHSCOPE_API_KEY not set (export it or paste into .env)", file=sys.stderr)
         return 2
 
-    base = os.environ.get("VIDEO_DASHSCOPE_BASE", "https://dashscope.aliyuncs.com").rstrip("/")
-    model = os.environ.get("VIDEO_DASHSCOPE_MODEL", "wan2.7-i2v-2026-04-25")
+    base = os.environ.get("VIDEO_DASHSCOPE_BASE", "https://dashscope-intl.aliyuncs.com").rstrip("/")
+    model = os.environ.get("VIDEO_DASHSCOPE_MODEL", "wan2.7-i2v")
     resolution = os.environ.get("VIDEO_DEFAULT_RESOLUTION", "720P")
     duration = int(os.environ.get("VIDEO_DEFAULT_DURATION", "5"))
     prompt_extend = os.environ.get("VIDEO_DEFAULT_PROMPT_EXTEND", "true").lower() == "true"

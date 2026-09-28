@@ -132,6 +132,8 @@ If `tts` or `video` shows `down`, that service isn't running (or its `.env`/`DAS
 
 Sample inputs (portrait, voice clip + transcript, and a farewell message) are provided in [`data/`](./data) for testing the `/create` form.
 
+> **Keep the farewell short.** The cloned speech drives the video, so the message must fit inside `VIDEO_DURATION_MAX` (10s by default, 15s max) — roughly 30 words. Longer text is cut off at the end of the video, and Wan i2v rejects driving audio over 30s outright.
+
 ## Git Workflow
 
 - `main` — release / stable

@@ -49,6 +49,22 @@ this gives callers a stable URL.
 Limits: image ≤ 25 MB, audio ≤ 50 MB. Wrong content type → `415`; missing
 `prompt` → `422`; `DASHSCOPE_API_KEY` unset → `503`.
 
+#### Duration limits
+
+Wan i2v accepts **at most 30s of driving `audio`** and a `duration` of 2–15s.
+Longer audio is rejected outright:
+
+```text
+InvalidParameter: audio.wav duration should be at most 30s, got 37.04s
+```
+
+The Express pipeline clamps `duration` to `VIDEO_DURATION_MIN`/`VIDEO_DURATION_MAX`
+(5–10s by default, set in the **root** `.env`, not this service's) but still sends
+the full cloned track. So the farewell text has to be short enough to be spoken
+within `VIDEO_DURATION_MAX` — roughly 30 words for the default 10s — otherwise the
+speech is cut off at the end of the video, or rejected once it passes 30s.
+Raise `VIDEO_DURATION_MAX` (up to 15) for longer messages.
+
 ```jsonc
 // 202
 { "job_id": "3f2c…", "status": "queued" }
@@ -90,7 +106,12 @@ cp .env.example .env   # then fill in the values below
 
 Required in `.env`:
 
-- `DASHSCOPE_API_KEY` — Aliyun DashScope key.
+- `DASHSCOPE_API_KEY` — Aliyun DashScope key, issued in the Singapore
+  (ap-southeast-1) region.
+- `VIDEO_DASHSCOPE_BASE` — `https://dashscope-intl.aliyuncs.com`, or the
+  workspace-specific `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com`.
+  The key and endpoint region must match, or every call fails with
+  `InvalidApiKey`.
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — leave blank to use the default
   AWS credential chain (shared config / instance role) instead.
 - `S3_BUCKET` / `S3_REGION` — default to `img-web-req` / `ap-southeast-1`.

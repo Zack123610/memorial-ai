@@ -99,9 +99,12 @@ cp .env.example .env   # then set DASHSCOPE_API_KEY
 
 Required in `.env`:
 
-- `DASHSCOPE_API_KEY` — Aliyun DashScope key (the same one `video-service` uses).
-- `TTS_DASHSCOPE_BASE` — regional endpoint; use
-  `https://dashscope-intl.aliyuncs.com` for a Singapore key.
+- `DASHSCOPE_API_KEY` — Aliyun DashScope key (the same one `video-service` uses),
+  issued in the Singapore (ap-southeast-1) region.
+- `TTS_DASHSCOPE_BASE` — `https://dashscope-intl.aliyuncs.com`, or the
+  workspace-specific `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com`.
+  The key and endpoint region must match, or every call fails with
+  `InvalidApiKey`.
 
 `TTS_ENROLLMENT_MODEL` and `TTS_DASHSCOPE_MODEL` must stay compatible: a voice
 enrolled with `target_model` X can only be used to synthesize with model X. See

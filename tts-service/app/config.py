@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # --- DashScope (Aliyun) Qwen3-TTS voice cloning ---
     dashscope_api_key: str = ""
-    tts_dashscope_base: str = "https://dashscope.aliyuncs.com"
+    tts_dashscope_base: str = "https://dashscope-intl.aliyuncs.com"
     # The enrollment API clones a voice; the TTS model then speaks with it.
     # The two are bound together: target_model at enrollment must equal the
     # model used for synthesis, or synthesis fails.
