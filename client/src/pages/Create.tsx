@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Page from '../components/Page';
 import { createJob } from '../services/api';
+import { CREATE_LIMITS, measureAudioDuration, validateCreateInput } from '../lib/validation';
 import { stagger, riseItem, ease } from '../lib/motion';
 
 const inputClass =
@@ -41,6 +42,26 @@ export default function Create() {
     setSubmitting(true);
     setError(null);
     try {
+      let audioSeconds: number | undefined;
+      try {
+        audioSeconds = await measureAudioDuration(audio);
+      } catch {
+        // Server/TTS still validates; don't block if the browser can't probe.
+      }
+
+      const validationError = validateCreateInput({
+        image,
+        audio,
+        refText,
+        text,
+        audioSeconds,
+      });
+      if (validationError) {
+        setError(validationError);
+        setSubmitting(false);
+        return;
+      }
+
       const { jobId } = await createJob({ image, audio, refText, text, language });
       navigate(`/jobs/${jobId}`);
     } catch (err) {
@@ -69,7 +90,7 @@ export default function Create() {
           onSubmit={onSubmit}
           className="glass space-y-6 rounded-3xl p-7 sm:p-9"
         >
-          <Field label="Photo of the person" hint="JPG or PNG">
+          <Field label="Photo of the person" hint="Clear front-facing portrait, JPG or PNG">
             <input
               type="file"
               accept="image/*"
@@ -78,7 +99,10 @@ export default function Create() {
             />
           </Field>
 
-          <Field label="Voice sample" hint="WAV or MP3, 3–60s">
+          <Field
+            label="Voice sample"
+            hint={`WAV or MP3, ${CREATE_LIMITS.minAudioSeconds}–${CREATE_LIMITS.maxAudioSeconds}s`}
+          >
             <input
               type="file"
               accept="audio/*"
@@ -87,21 +111,29 @@ export default function Create() {
             />
           </Field>
 
-          <Field label="Transcript of the voice sample">
+          <Field
+            label="Transcript of the voice sample"
+            hint={`${refText.trim().length}/${CREATE_LIMITS.maxRefTextChars}`}
+          >
             <textarea
               value={refText}
               onChange={(e) => setRefText(e.target.value)}
               rows={2}
+              maxLength={CREATE_LIMITS.maxRefTextChars}
               placeholder="Exactly what is said in the voice sample above"
               className={inputClass}
             />
           </Field>
 
-          <Field label="Farewell message">
+          <Field
+            label="Farewell message"
+            hint={`${text.trim().length}/${CREATE_LIMITS.maxTextChars}`}
+          >
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={5}
+              maxLength={CREATE_LIMITS.maxTextChars}
               placeholder="The words you want spoken in the video"
               className={inputClass}
             />

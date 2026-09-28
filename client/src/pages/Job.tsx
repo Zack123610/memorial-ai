@@ -27,16 +27,16 @@ function stageIndex(status: JobStatus): number {
 
 export default function Job() {
   const { id = '' } = useParams();
-  const { job, error } = useJob(id);
+  const { job, error, expired } = useJob(id);
 
-  if (error) {
+  if (error && !job) {
     return (
       <Page>
         <motion.div variants={stagger} initial="hidden" animate="show" className="text-center">
           <motion.h1 variants={riseItem} className="mb-4 font-serif text-4xl text-white/90">
-            Job not found
+            {expired ? 'Job expired' : 'Job not found'}
           </motion.h1>
-          <motion.p variants={riseItem} className="text-memorial-muted">
+          <motion.p variants={riseItem} className="mx-auto max-w-md text-memorial-muted">
             {error}
           </motion.p>
           <motion.div variants={riseItem}>

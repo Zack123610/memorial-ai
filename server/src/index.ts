@@ -5,7 +5,7 @@ import cors from 'cors';
 import multer from 'multer';
 import { Server as SocketServer } from 'socket.io';
 import { config } from './config/env.js';
-import { healthRouter } from './routes/health.js';
+import { createHealthRouter } from './routes/health.js';
 import { createJobsRouter } from './routes/jobs.js';
 import { JobStore } from './jobs/store.js';
 import { TtsClient } from './services/tts.js';
@@ -24,7 +24,7 @@ const store = new JobStore(io);
 const tts = new TtsClient();
 const video = new VideoClient();
 
-app.use('/api/health', healthRouter);
+app.use('/api/health', createHealthRouter({ tts, video }));
 app.use('/api/jobs', createJobsRouter({ store, tts, video }));
 
 // Upload / body errors → JSON instead of an HTML stack trace.

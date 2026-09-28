@@ -1,10 +1,13 @@
+import { config } from '../config/env.js';
+import { clampVideoDuration, estimateSpeechSeconds, wavDurationSeconds } from '../lib/audio.js';
+import { friendlyPipelineError } from '../lib/errors.js';
 import type { TtsClient, TtsLanguage } from '../services/tts.js';
 import type { VideoClient } from '../services/video.js';
 import type { JobStore } from './store.js';
 
 /** Fixed scene/motion prompt for the talking-head video (Wan2.7 i2v). */
 const DEFAULT_VIDEO_PROMPT =
-  'A person speaking warmly and calmly to the camera, gentle natural head movement, soft even lighting.';
+  'A person speaking warmly and calmly to the camera, gentle natural head movement, soft even lighting. Clear frontal face, natural lip sync with the audio.';
 
 const AUDIO_EXTENSIONS: Record<string, string> = {
   'audio/wav': 'wav',
@@ -33,6 +36,18 @@ export interface PipelineDeps {
   video: VideoClient;
 }
 
+function videoDurationFor(clonedAudio: Buffer, text: string, language: TtsLanguage): number {
+  const measured = wavDurationSeconds(clonedAudio);
+  const estimated = estimateSpeechSeconds(text, language);
+  const seconds = measured ?? estimated;
+  return clampVideoDuration(
+    seconds,
+    config.video.minDuration,
+    config.video.maxDuration,
+    config.video.defaultDuration,
+  );
+}
+
 /**
  * Runs a generation job end-to-end: clone the voice, hand the photo + cloned
  * audio to the video service, and poll until the video is ready. Updates the
@@ -54,7 +69,12 @@ export async function runPipeline(
       language: input.language,
     });
 
-    store.update(jobId, { status: 'video_generating', detail: 'Submitting to video service' });
+    const duration = videoDurationFor(cloned.audio, input.text, input.language);
+    store.update(jobId, {
+      status: 'video_generating',
+      detail: `Submitting to video service (${duration}s @ ${config.video.resolution})`,
+    });
+
     const clonedExt = AUDIO_EXTENSIONS[cloned.contentType] ?? 'wav';
     const { jobId: videoJobId } = await video.submit({
       image: input.image.buffer,
@@ -64,6 +84,10 @@ export async function runPipeline(
       audioFilename: `cloned.${clonedExt}`,
       audioMimeType: cloned.contentType,
       prompt: DEFAULT_VIDEO_PROMPT,
+      resolution: config.video.resolution,
+      duration,
+      promptExtend: config.video.promptExtend,
+      watermark: config.video.watermark,
     });
 
     const { videoUrl } = await video.waitForCompletion(videoJobId, (detail) =>
@@ -72,9 +96,10 @@ export async function runPipeline(
 
     store.update(jobId, { status: 'completed', detail: null, videoUrl });
   } catch (err) {
+    console.error(`[pipeline] job ${jobId} failed:`, err);
     store.update(jobId, {
       status: 'failed',
-      error: err instanceof Error ? err.message : String(err),
+      error: friendlyPipelineError(err),
     });
   }
 }

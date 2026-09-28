@@ -1,4 +1,5 @@
 import { config } from '../config/env.js';
+import { fetchWithTimeout, withRetry } from '../lib/fetch.js';
 
 export type VideoJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed';
 
@@ -10,6 +11,10 @@ export interface VideoSubmitInput {
   audioFilename?: string;
   audioMimeType?: string;
   prompt: string;
+  resolution?: string;
+  duration?: number;
+  promptExtend?: boolean;
+  watermark?: boolean;
 }
 
 export interface VideoJob {
@@ -18,6 +23,10 @@ export interface VideoJob {
   detail: string | null;
   videoUrl: string | null;
   error: string | null;
+}
+
+export interface VideoHealth {
+  status: string;
 }
 
 export class VideoServiceError extends Error {
@@ -36,9 +45,21 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export class VideoClient {
   constructor(
     private readonly baseUrl: string = config.videoServiceUrl,
-    private readonly pollIntervalMs = 5_000,
-    private readonly timeoutMs = 15 * 60_000,
+    private readonly pollIntervalMs = config.http.videoPollIntervalMs,
+    private readonly waitTimeoutMs = config.http.videoWaitTimeoutMs,
+    private readonly requestTimeoutMs = config.http.videoTimeoutMs,
+    private readonly retries = config.http.maxRetries,
   ) {}
+
+  async health(): Promise<VideoHealth> {
+    const res = await fetchWithTimeout(
+      `${this.baseUrl}/api/v1/health`,
+      {},
+      config.http.healthTimeoutMs,
+    );
+    if (!res.ok) throw new VideoServiceError(await res.text(), res.status);
+    return (await res.json()) as VideoHealth;
+  }
 
   async submit(input: VideoSubmitInput): Promise<{ jobId: string }> {
     const form = new FormData();
@@ -55,8 +76,27 @@ export class VideoClient {
       );
     }
     form.append('prompt', input.prompt);
+    if (input.resolution) form.append('resolution', input.resolution);
+    if (input.duration !== undefined) form.append('duration', String(input.duration));
+    if (input.promptExtend !== undefined) {
+      form.append('prompt_extend', String(input.promptExtend));
+    }
+    if (input.watermark !== undefined) form.append('watermark', String(input.watermark));
 
-    const res = await fetch(`${this.baseUrl}/api/v1/jobs`, { method: 'POST', body: form });
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        `${this.baseUrl}/api/v1/jobs`,
+        { method: 'POST', body: form },
+        this.requestTimeoutMs,
+      );
+    } catch (err) {
+      throw new VideoServiceError(
+        err instanceof Error ? err.message : 'video-service request failed',
+        504,
+      );
+    }
+
     if (!res.ok) {
       const detail = await res.text().catch(() => '<no body>');
       throw new VideoServiceError(`video-service ${res.status}: ${detail}`, res.status);
@@ -66,7 +106,26 @@ export class VideoClient {
   }
 
   async getStatus(jobId: string): Promise<VideoJob> {
-    const res = await fetch(`${this.baseUrl}/api/v1/jobs/${jobId}`);
+    return withRetry(() => this.getStatusOnce(jobId), {
+      retries: this.retries,
+      label: 'video.getStatus',
+    });
+  }
+
+  private async getStatusOnce(jobId: string): Promise<VideoJob> {
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        `${this.baseUrl}/api/v1/jobs/${jobId}`,
+        {},
+        this.requestTimeoutMs,
+      );
+    } catch (err) {
+      throw new VideoServiceError(
+        err instanceof Error ? err.message : 'video-service status request failed',
+        504,
+      );
+    }
     if (!res.ok) {
       const detail = await res.text().catch(() => '<no body>');
       throw new VideoServiceError(`video-service ${res.status}: ${detail}`, res.status);
@@ -92,7 +151,7 @@ export class VideoClient {
     jobId: string,
     onProgress?: (detail: string) => void,
   ): Promise<{ videoUrl: string }> {
-    const deadline = Date.now() + this.timeoutMs;
+    const deadline = Date.now() + this.waitTimeoutMs;
     for (;;) {
       const job = await this.getStatus(jobId);
       onProgress?.(job.detail ?? `video: ${job.status}`);
