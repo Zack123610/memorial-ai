@@ -79,6 +79,21 @@ cp video-service/.env.example video-service/.env  # DASHSCOPE_API_KEY + S3 bucke
 
 ### 4. Start everything
 
+The quickest way is the deploy script, which starts all four processes (plus Redis), waits for their health checks, and reclaims ports still held by an earlier run:
+
+```bash
+./service_deploy.sh start     # start everything
+./service_deploy.sh status    # per-service health table
+./service_deploy.sh logs tts  # tail one service (or omit the name for all)
+./service_deploy.sh stop
+./service_deploy.sh restart
+```
+
+Services run in the background and survive closing the terminal. Logs and pidfiles land in `logs/`.
+
+<details>
+<summary>Or start each process manually</summary>
+
 Run each command in its **own terminal** and keep them running.
 
 ```bash
@@ -94,6 +109,8 @@ cd tts-service && uv sync && uv run uvicorn app.main:app --host 127.0.0.1 --port
 # Terminal 4 — Video service (DashScope Wan2.7 i2v)
 cd video-service && uv sync && uv run uvicorn app.main:app --host 127.0.0.1 --port 8300
 ```
+
+</details>
 
 Services and their URLs:
 
