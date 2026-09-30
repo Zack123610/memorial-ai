@@ -27,8 +27,8 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 - **Backend:** Node.js + Express + BullMQ (job queue), orchestrating the AI services over HTTP
 - **AI Pipeline:** Two standalone FastAPI microservices — [`tts-service`](./tts-service/README.md) and [`video-service`](./video-service/README.md)
 - **Voice Cloning:** Aliyun DashScope Qwen3-TTS voice cloning (`qwen-voice-enrollment` + `qwen3-tts-vc`) — clones a voice from a reference sample; see [`tts-service/`](./tts-service/README.md)
-- **Video Generation:** Aliyun DashScope Wan2.7 i2v (image+audio → talking head) — see [`video-service/`](./video-service/README.md)
-- **Lip Sync:** Built into Wan2.7 i2v — audio-driven, no separate lip-sync model
+- **Video Generation:** Aliyun DashScope Wan i2v (`wan2.6-i2v-flash`; image+audio → talking head) — see [`video-service/`](./video-service/README.md)
+- **Lip Sync:** Built into Wan i2v — audio-driven, no separate lip-sync model
 - **Realtime:** Socket.IO for progress updates
 
 ## Project Milestones
@@ -106,7 +106,7 @@ npm run dev
 # Terminal 3 — TTS service (DashScope Qwen3-TTS voice cloning)
 cd tts-service && uv sync && uv run uvicorn app.main:app --host 127.0.0.1 --port 8200
 
-# Terminal 4 — Video service (DashScope Wan2.7 i2v)
+# Terminal 4 — Video service (DashScope Wan i2v)
 cd video-service && uv sync && uv run uvicorn app.main:app --host 127.0.0.1 --port 8300
 ```
 
@@ -132,7 +132,7 @@ If `tts` or `video` shows `down`, that service isn't running (or its `.env`/`DAS
 
 Sample inputs (portrait, voice clip + transcript, and a farewell message) are provided in [`data/`](./data) for testing the `/create` form.
 
-> **Keep the farewell short.** The cloned speech drives the video, so the message must fit inside `VIDEO_DURATION_MAX` (10s by default, 15s max) — roughly 30 words. Longer text is cut off at the end of the video, and Wan i2v rejects driving audio over 30s outright.
+> **Keep the farewell short.** The video lasts exactly as long as the cloned speech, and Wan i2v caps a single clip at 15s — so `VIDEO_DURATION_MAX` in the root `.env` is 15 and cannot go higher. A longer message is rejected by `POST /api/jobs` instead of being generated half-spoken; the budget is ~162 characters of English or ~54 of Chinese (the Create form shows the live count).
 
 ## Git Workflow
 

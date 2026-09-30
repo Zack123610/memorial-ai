@@ -41,7 +41,7 @@ export class VideoServiceError extends Error {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Client for the video-service job API (DashScope Wan2.7 i2v). */
+/** Client for the video-service job API (DashScope Wan i2v). */
 export class VideoClient {
   constructor(
     private readonly baseUrl: string = config.videoServiceUrl,

@@ -88,7 +88,7 @@ def main() -> int:
         print("error: DASHSCOPE_API_KEY not set (export it or paste into .env)", file=sys.stderr)
         return 2
 
-    base = os.environ.get("TTS_DASHSCOPE_BASE", "https://dashscope-intl.aliyuncs.com").rstrip("/")
+    base = os.environ.get("TTS_DASHSCOPE_BASE", "https://dashscope.aliyuncs.com").rstrip("/")
     enrollment_model = os.environ.get("TTS_ENROLLMENT_MODEL", "qwen-voice-enrollment")
     model = os.environ.get("TTS_DASHSCOPE_MODEL", "qwen3-tts-vc-2026-01-22")
     prefix = os.environ.get("TTS_VOICE_PREFIX", "memorial")

@@ -5,7 +5,7 @@ import type { TtsClient, TtsLanguage } from '../services/tts.js';
 import type { VideoClient } from '../services/video.js';
 import type { JobStore } from './store.js';
 
-/** Fixed scene/motion prompt for the talking-head video (Wan2.7 i2v). */
+/** Fixed scene/motion prompt for the talking-head video (Wan i2v). */
 const DEFAULT_VIDEO_PROMPT =
   'A person speaking warmly and calmly to the camera, gentle natural head movement, soft even lighting. Clear frontal face, natural lip sync with the audio.';
 

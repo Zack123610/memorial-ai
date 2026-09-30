@@ -8,7 +8,7 @@ FastAPI + `uv`, Python 3.12.
 
 > **Trial reimplementation.** This service previously ran `Qwen3-TTS-12Hz-1.7B-Base`
 > locally through PyTorch. It now calls DashScope instead — the same provider the
-> [`video-service`](../video-service/README.md) uses for Wan2.7 i2v — so neither
+> [`video-service`](../video-service/README.md) uses for Wan i2v — so neither
 > service needs a GPU. The `POST /clone` contract is unchanged, so the Express
 > backend and its pipeline work against either implementation.
 
@@ -100,11 +100,13 @@ cp .env.example .env   # then set DASHSCOPE_API_KEY
 Required in `.env`:
 
 - `DASHSCOPE_API_KEY` — Aliyun DashScope key (the same one `video-service` uses),
-  issued in the Singapore (ap-southeast-1) region.
-- `TTS_DASHSCOPE_BASE` — `https://dashscope-intl.aliyuncs.com`, or the
-  workspace-specific `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com`.
-  The key and endpoint region must match, or every call fails with
-  `InvalidApiKey`.
+  issued in 华北2/Beijing (`cn-beijing`), which is the cheapest region.
+- `TTS_DASHSCOPE_BASE` — `https://dashscope.aliyuncs.com`, or the faster
+  workspace-specific `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com`
+  (Singapore equivalents: `https://dashscope-intl.aliyuncs.com` and
+  `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com`). The key and
+  endpoint region must match, or every call fails with `InvalidApiKey` — which
+  is also what an unfunded account returns.
 
 `TTS_ENROLLMENT_MODEL` and `TTS_DASHSCOPE_MODEL` must stay compatible: a voice
 enrolled with `target_model` X can only be used to synthesize with model X. See

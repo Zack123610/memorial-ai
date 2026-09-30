@@ -3,6 +3,9 @@ function num(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** Wan i2v refuses a `duration` above this, so neither may VIDEO_DURATION_MAX. */
+const MODEL_MAX_DURATION = 15;
+
 export const config = {
   port: num(process.env.PORT, 3001),
   nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -30,7 +33,10 @@ export const config = {
     /** Fallback when cloned-audio duration cannot be measured. */
     defaultDuration: num(process.env.VIDEO_DURATION, 5),
     minDuration: num(process.env.VIDEO_DURATION_MIN, 5),
-    maxDuration: num(process.env.VIDEO_DURATION_MAX, 10),
+    maxDuration: Math.min(
+      num(process.env.VIDEO_DURATION_MAX, MODEL_MAX_DURATION),
+      MODEL_MAX_DURATION,
+    ),
     promptExtend: (process.env.VIDEO_PROMPT_EXTEND ?? 'true').toLowerCase() !== 'false',
     watermark: (process.env.VIDEO_WATERMARK ?? 'false').toLowerCase() === 'true',
   },
