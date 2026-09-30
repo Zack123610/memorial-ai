@@ -15,12 +15,16 @@ export interface VideoSubmitInput {
   duration?: number;
   promptExtend?: boolean;
   watermark?: boolean;
+  /** Caller's job ID; used as the S3 key prefix so the bucket mirrors the URL. */
+  externalId?: string;
 }
 
 export interface VideoJob {
   jobId: string;
   status: VideoJobStatus;
   detail: string | null;
+  imageUrl: string | null;
+  audioUrl: string | null;
   videoUrl: string | null;
   error: string | null;
 }
@@ -82,6 +86,7 @@ export class VideoClient {
       form.append('prompt_extend', String(input.promptExtend));
     }
     if (input.watermark !== undefined) form.append('watermark', String(input.watermark));
+    if (input.externalId) form.append('external_id', input.externalId);
 
     let res: Response;
     try {
@@ -134,6 +139,8 @@ export class VideoClient {
       job_id: string;
       status: VideoJobStatus;
       detail?: string | null;
+      image_url?: string | null;
+      audio_url?: string | null;
       video_url?: string | null;
       error?: string | null;
     };
@@ -141,6 +148,8 @@ export class VideoClient {
       jobId: j.job_id,
       status: j.status,
       detail: j.detail ?? null,
+      imageUrl: j.image_url ?? null,
+      audioUrl: j.audio_url ?? null,
       videoUrl: j.video_url ?? null,
       error: j.error ?? null,
     };
@@ -150,7 +159,7 @@ export class VideoClient {
   async waitForCompletion(
     jobId: string,
     onProgress?: (detail: string) => void,
-  ): Promise<{ videoUrl: string }> {
+  ): Promise<{ videoUrl: string; imageUrl: string | null; audioUrl: string | null }> {
     const deadline = Date.now() + this.waitTimeoutMs;
     for (;;) {
       const job = await this.getStatus(jobId);
@@ -160,7 +169,7 @@ export class VideoClient {
         if (!job.videoUrl) {
           throw new VideoServiceError('video-service succeeded without a video_url', 502);
         }
-        return { videoUrl: job.videoUrl };
+        return { videoUrl: job.videoUrl, imageUrl: job.imageUrl, audioUrl: job.audioUrl };
       }
       if (job.status === 'failed') {
         throw new VideoServiceError(job.error ?? 'video-service job failed', 502);

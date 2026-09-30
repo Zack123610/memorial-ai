@@ -8,6 +8,8 @@ export interface Job {
   status: JobStatus;
   detail: string | null;
   videoUrl: string | null;
+  imageUrl: string | null;
+  audioUrl: string | null;
   error: string | null;
   createdAt: number;
   updatedAt: number;
@@ -29,6 +31,8 @@ export class JobStore {
       status: 'queued',
       detail: null,
       videoUrl: null,
+      imageUrl: null,
+      audioUrl: null,
       error: null,
       createdAt: now,
       updatedAt: now,

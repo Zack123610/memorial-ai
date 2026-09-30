@@ -88,13 +88,14 @@ export async function runPipeline(
       duration,
       promptExtend: config.video.promptExtend,
       watermark: config.video.watermark,
+      externalId: jobId,
     });
 
-    const { videoUrl } = await video.waitForCompletion(videoJobId, (detail) =>
+    const { videoUrl, imageUrl, audioUrl } = await video.waitForCompletion(videoJobId, (detail) =>
       store.update(jobId, { detail }),
     );
 
-    store.update(jobId, { status: 'completed', detail: null, videoUrl });
+    store.update(jobId, { status: 'completed', detail: null, videoUrl, imageUrl, audioUrl });
   } catch (err) {
     console.error(`[pipeline] job ${jobId} failed:`, err);
     store.update(jobId, {

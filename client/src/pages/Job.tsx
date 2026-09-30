@@ -102,6 +102,48 @@ export default function Job() {
               Create another
             </Link>
           </motion.div>
+
+          {(job.imageUrl || job.audioUrl) && (
+            <motion.div variants={riseItem} className="mt-10 text-center">
+              <p className="mb-2 text-xs uppercase tracking-[0.2em] text-memorial-muted">
+                Source files
+              </p>
+              <p className="mb-3 text-xs text-memorial-muted/70">
+                Archived in S3 under{' '}
+                <code className="text-memorial-muted">memorial/inputs/{job.id}/</code>
+              </p>
+              <div className="flex items-center justify-center gap-5 text-sm">
+                {job.imageUrl && (
+                  <a
+                    href={job.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-memorial-accent underline-offset-4 hover:underline"
+                  >
+                    Portrait image
+                  </a>
+                )}
+                {job.audioUrl && (
+                  <a
+                    href={job.audioUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-memorial-accent underline-offset-4 hover:underline"
+                  >
+                    Cloned audio
+                  </a>
+                )}
+                <a
+                  href={job.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-memorial-accent underline-offset-4 hover:underline"
+                >
+                  Video (mp4)
+                </a>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       </Page>
     );
