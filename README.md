@@ -30,6 +30,8 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 - **Video Generation:** Aliyun DashScope Wan i2v (`wan2.6-i2v-flash`; image+audio → talking head) — see [`video-service/`](./video-service/README.md)
 - **Lip Sync:** Built into Wan i2v — audio-driven, no separate lip-sync model
 - **Realtime:** Socket.IO for progress updates
+- **Job state & quotas:** Redis-backed job records (7-day TTL, restart recovery), with per-user and global daily quotas capping DashScope spend
+- **Storage:** AWS S3 with private objects behind short-lived presigned URLs (Cloudflare R2-ready)
 
 ## Project Milestones
 
@@ -37,6 +39,10 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 | --------- | --------------------------------------------------------------- | ---------- |
 | MVP 1     | Generate farewell videos with the deceased speaking their wills | Months 1–3 |
 | MVP 2     | Interactive digital avatar with Q&A capabilities                | Months 4–5 |
+
+## Production
+
+Deployed end-to-end at zero Cloudflare cost: the SPA runs on Cloudflare Pages (`memorial-ai.zackee.dev`), and the Express API plus both AI services run on a home server — currently a MacBook, via `service_deploy.sh` or `docker-compose-prod.yml` — published only through a Cloudflare Tunnel (`memorial-api.zackee.dev`). Quotas are the spend ceiling for now; Cloudflare Access (GitHub sign-in) is built into the server but not yet switched on. Full runbook: [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Getting Started
 
@@ -149,6 +155,9 @@ npm run test:e2e
 
 # Optional full generation against DashScope (uses credits)
 E2E_LIVE=1 npm run test:e2e
+
+# Redis job store + quota behavior (needs a local Redis)
+npm run test:store
 ```
 
 Demo checklist: [docs/DEMO.md](./docs/DEMO.md). Full plan: [DEVELOPMENT.md](./DEVELOPMENT.md).

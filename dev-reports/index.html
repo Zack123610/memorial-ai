@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memorial AI — Dev Report · Oct 1–4, 2026</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --card: #141926;
+    --line: #232b3d;
+    --text: #e8ecf5;
+    --muted: #8a94ad;
+    --accent: #7aa2f7;
+    --accent2: #9ece6a;
+    --warn: #e0af68;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); overflow: hidden;
+  }
+  .deck { height: 100vh; position: relative; }
+  .slide {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; justify-content: center;
+    padding: 7vh 10vw; gap: 1.6rem;
+    animation: fade .35s ease;
+  }
+  .slide.active { display: flex; }
+  @keyframes fade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  .kicker { color: var(--accent); font-size: .8rem; letter-spacing: .18em; text-transform: uppercase; font-weight: 600; }
+  h1 { font-size: clamp(2.2rem, 5.5vw, 4rem); font-weight: 800; letter-spacing: -.02em; }
+  h2 { font-size: clamp(1.5rem, 3.4vw, 2.4rem); font-weight: 700; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: clamp(1rem, 1.6vw, 1.2rem); max-width: 46rem; line-height: 1.55; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .9rem; max-width: 54rem; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.2rem; }
+  .stat b { display: block; font-size: 1.7rem; font-weight: 800; color: var(--accent); }
+  .stat span { color: var(--muted); font-size: .82rem; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; max-width: 60rem; }
+  @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.2rem 1.4rem; }
+  .card h3 { font-size: 1rem; margin-bottom: .2rem; }
+  .card .tag { display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .08em; padding: .15rem .5rem; border-radius: 99px; margin-bottom: .7rem; }
+  .tag.merged { background: #1c2a1c; color: var(--accent2); }
+  .tag.live { background: #1c2438; color: var(--accent); }
+  .card ul { list-style: none; }
+  .card li { padding: .42rem 0; border-bottom: 1px solid var(--line); font-size: .92rem; color: var(--text); display: flex; gap: .6rem; }
+  .card li:last-child { border-bottom: none; }
+  .card li code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .8rem; white-space: nowrap; }
+
+  .bars { display: flex; gap: 1.4rem; align-items: flex-end; height: 130px; max-width: 22rem; }
+  .bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem; }
+  .bar i { width: 100%; border-radius: 8px 8px 3px 3px; background: linear-gradient(180deg, var(--accent), #3d5a8f); animation: grow .6s ease; }
+  @keyframes grow { from { height: 0 !important; } }
+  .bar b { font-size: .85rem; }
+  .bar span { color: var(--muted); font-size: .72rem; }
+
+  .checks { list-style: none; max-width: 52rem; }
+  .checks li { display: flex; gap: .8rem; padding: .5rem 0; font-size: 1rem; border-bottom: 1px solid var(--line); }
+  .checks li:last-child { border-bottom: none; }
+  .checks .tick { color: var(--accent2); font-weight: 800; }
+  .checks .todo { color: var(--warn); font-weight: 800; }
+  .checks small { color: var(--muted); display: block; margin-top: .15rem; }
+
+  .nav { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: .5rem; align-items: center; z-index: 10; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); border: none; cursor: pointer; transition: .2s; }
+  .dot.on { background: var(--accent); transform: scale(1.25); }
+  .arrows { position: fixed; bottom: 16px; right: 22px; display: flex; gap: .5rem; z-index: 10; }
+  .arrows button {
+    background: var(--card); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; width: 38px; height: 38px; font-size: 1.05rem; cursor: pointer;
+  }
+  .arrows button:hover { border-color: var(--accent); }
+  .pageno { position: fixed; bottom: 24px; left: 22px; color: var(--muted); font-size: .78rem; z-index: 10; }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- Slide 1 — Title -->
+  <section class="slide active">
+    <div class="kicker">Development Report · Oct 1 – 4, 2026</div>
+    <h1>Memorial AI<br /><span style="color:var(--accent)">4 days, shipped to production</span></h1>
+    <p class="sub">From MVP polish to a live, containerized deployment: the farewell-video pipeline now runs
+      end-to-end behind a Cloudflare Tunnel, with Redis-backed job persistence and private S3 storage.</p>
+    <div class="grid">
+      <div class="stat"><b>9</b><span>commits</span></div>
+      <div class="stat"><b>74</b><span>files changed</span></div>
+      <div class="stat"><b>+3,151</b><span>lines added</span></div>
+      <div class="stat"><b>2</b><span>workstreams</span></div>
+      <div class="stat"><b>1</b><span>PR merged</span></div>
+    </div>
+  </section>
+
+  <!-- Slide 2 — Timeline -->
+  <section class="slide">
+    <div class="kicker">Activity</div>
+    <h2>Commit timeline</h2>
+    <div class="cols">
+      <div class="card">
+        <h3>Oct 1 · <code>dev-phase4-mvp-polish</code></h3>
+        <ul>
+          <li><code>b714818</code> Switch to Beijing <b>wan2.6-i2v-flash</b>, complete the farewell sentence</li>
+          <li><code>3055063</code> Key S3 inputs/outputs by Express job ID, surface in the UI</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Oct 4 · <code>deploy-cloudflare-nas</code></h3>
+        <ul>
+          <li><code>0f16982</code> build: containerize the stack</li>
+          <li><code>57f9855</code> feat(server): Redis persistence + Access gating</li>
+          <li><code>c5d2a20</code> feat(client): configurable API origin</li>
+          <li><code>7e9b90b</code> fix(video-service): presigned S3 URLs</li>
+          <li><code>8c41935</code> docs: deploy hostnames, GitHub sign-in</li>
+          <li><code>b57b537</code> fix(deploy): SSL-safe hostname, compose rename</li>
+        </ul>
+      </div>
+    </div>
+    <div class="bars">
+      <div class="bar"><i style="height:28%"></i><b>2</b><span>Oct 1</span></div>
+      <div class="bar"><i style="height:100%"></i><b>7</b><span>Oct 4</span></div>
+    </div>
+  </section>
+
+  <!-- Slide 3 — Workstreams -->
+  <section class="slide">
+    <div class="kicker">Highlights</div>
+    <h2>Two workstreams, one goal</h2>
+    <div class="cols">
+      <div class="card">
+        <span class="tag merged">MERGED TO MAIN · PR #8</span>
+        <h3>Model &amp; UX polish</h3>
+        <ul>
+          <li>Cheaper video tier: <b>wan2.6-i2v-flash</b> (¥0.3/s, half of wan2.7) — same 15s clip limits</li>
+          <li>Farewell always completes: duration is sized to the cloned speech</li>
+          <li>S3 artifacts now keyed by job UUID — stable, predictable URLs</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="tag live">LIVE BEHIND CLOUDFLARE TUNNEL</span>
+        <h3>Production deployment</h3>
+        <ul>
+          <li>Docker stack: server + tts + video + Redis, AI services isolated from the edge</li>
+          <li>Jobs survive restarts in Redis; quotas cap DashScope spend</li>
+          <li>Bucket objects private — short-lived presigned URLs only</li>
+          <li>SPA on Pages, API at <b>memorial-api.zackee.dev</b> (free Universal SSL)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 4 — Status & next -->
+  <section class="slide">
+    <div class="kicker">Where we stand</div>
+    <h2>Verified live — and what's next</h2>
+    <ul class="checks">
+      <li><span class="tick">✓</span><div>End-to-end generation verified tonight: 3 min 17 s
+        (90 s voice enrollment · 5 s speech · 100 s video)<small>Failed first attempt traced to a hung DashScope call at evening peak — retried successfully.</small></div></li>
+      <li><span class="tick">✓</span><div>Frontend → backend path confirmed healthy: tunnel, SPA bundle, and CORS all checked</div></li>
+      <li><span class="todo">△</span><div>Raise TTS timeouts to 240 s — enrollment alone takes 90 s of the current 120 s budget</div></li>
+      <li><span class="todo">△</span><div>Cloudflare Access (GitHub sign-in) not yet configured — API is public-but-obscure, quotas are the spend ceiling</div></li>
+      <li><span class="todo">△</span><div>NAS migration deferred — MacBook is the host for now; compose stack is ready when needed</div></li>
+    </ul>
+  </section>
+
+</div>
+
+<div class="pageno"><span id="pg">1</span> / 4</div>
+<div class="nav" id="dots"></div>
+<div class="arrows">
+  <button onclick="go(-1)" aria-label="Previous">‹</button>
+  <button onclick="go(1)" aria-label="Next">›</button>
+</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  const dots = document.getElementById('dots');
+  const pg = document.getElementById('pg');
+  let cur = 0;
+  slides.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    d.onclick = () => show(i);
+    dots.appendChild(d);
+  });
+  function show(i) {
+    cur = (i + slides.length) % slides.length;
+    slides.forEach((s, j) => s.classList.toggle('active', j === cur));
+    [...dots.children].forEach((d, j) => d.classList.toggle('on', j === cur));
+    pg.textContent = cur + 1;
+  }
+  function go(d) { show(cur + d); }
+  addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') go(1);
+    if (e.key === 'ArrowLeft') go(-1);
+  });
+  addEventListener('click', e => { if (!e.target.closest('button')) go(1); });
+</script>
+</body>
+</html>
