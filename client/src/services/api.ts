@@ -1,3 +1,5 @@
+import { apiBase } from './config';
+
 export type JobStatus = 'queued' | 'voice_cloning' | 'video_generating' | 'completed' | 'failed';
 
 export interface Job {
@@ -21,6 +23,9 @@ export interface CreateJobInput {
 }
 
 export class ApiError extends Error {
+  static readonly signInHint =
+    'Could not reach the server. If you were signed in, your session may have expired — reload the page to sign in again.';
+
   constructor(
     message: string,
     public readonly status: number,
@@ -43,6 +48,21 @@ async function readError(res: Response): Promise<ApiError> {
   return new ApiError(message, res.status, body?.code);
 }
 
+/**
+ * `credentials: 'include'` is required in production: the client and API are on
+ * different hostnames, and without it the browser withholds the Cloudflare
+ * Access cookie and every call is rejected.
+ */
+async function request(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${apiBase}${path}`, { ...init, credentials: 'include' });
+  } catch {
+    // A rejected fetch here is usually an expired Access session: the redirect
+    // to the login page is cross-origin and surfaces as a network error.
+    throw new ApiError(ApiError.signInHint, 0, 'NETWORK');
+  }
+}
+
 export async function createJob(
   input: CreateJobInput,
 ): Promise<{ jobId: string; status: JobStatus }> {
@@ -53,13 +73,13 @@ export async function createJob(
   form.append('text', input.text);
   form.append('language', input.language);
 
-  const res = await fetch('/api/jobs', { method: 'POST', body: form });
+  const res = await request('/api/jobs', { method: 'POST', body: form });
   if (!res.ok) throw await readError(res);
   return res.json() as Promise<{ jobId: string; status: JobStatus }>;
 }
 
 export async function getJob(id: string): Promise<Job> {
-  const res = await fetch(`/api/jobs/${id}`);
+  const res = await request(`/api/jobs/${id}`);
   if (!res.ok) throw await readError(res);
   return res.json() as Promise<Job>;
 }

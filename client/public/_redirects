@@ -1,0 +1,4 @@
+# SPA fallback for Cloudflare Pages: deep links like /jobs/<uuid> are routed by
+# react-router in the browser, so every unmatched path serves index.html with a
+# 200 rather than a redirect.
+/*  /index.html  200
