@@ -1,0 +1,116 @@
+# Production stack for a home server (UGREEN NAS / Mac Mini).
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Nothing is published to the host. The only ingress is cloudflared, which
+# dials out to Cloudflare and reverse-proxies the API. The two AI services sit
+# on the `private` network with no route to the edge, so the DashScope key is
+# never reachable from the internet even if the API is compromised.
+
+name: memorial-ai
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: memorial-redis
+    command: ['redis-server', '--appendonly', 'yes', '--save', '60', '1']
+    volumes:
+      - redis-data:/data
+    networks: [private]
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  tts:
+    build: ./tts-service
+    image: memorial-tts:latest
+    container_name: memorial-tts
+    env_file: [./tts-service/.env]
+    networks: [private]
+    restart: unless-stopped
+
+  video:
+    build: ./video-service
+    image: memorial-video:latest
+    container_name: memorial-video
+    env_file: [./video-service/.env]
+    networks: [private]
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: memorial-server:latest
+    container_name: memorial-server
+    env_file: [./.env]
+    environment:
+      NODE_ENV: production
+      PORT: '3001'
+      # Container DNS names, not localhost.
+      TTS_SERVICE_URL: http://tts:8200
+      VIDEO_SERVICE_URL: http://video:8300
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+    depends_on:
+      redis:
+        condition: service_healthy
+      tts:
+        condition: service_started
+      video:
+        condition: service_started
+    networks: [private, edge]
+    restart: unless-stopped
+
+  # Ingress. Create the tunnel in the Cloudflare dashboard, then put its token
+  # in TUNNEL_TOKEN. Route the public hostname to http://server:3001.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: memorial-cloudflared
+    command: ['tunnel', '--no-autoupdate', 'run']
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+    depends_on: [server]
+    networks: [edge]
+    restart: unless-stopped
+
+  # Admin access to the NAS itself (SSH, UGOS panel, Docker) over the tailnet.
+  # Deliberately not part of the `edge` network: this path is for you, not for
+  # app users. Skip this service if you install Tailscale from the UGOS App
+  # Center instead. TS_ROUTES should match your home LAN subnet.
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: memorial-tailscale
+    hostname: ${TS_HOSTNAME:-memorial-nas}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_ROUTES: ${TS_ROUTES:-}
+      TS_EXTRA_ARGS: --accept-dns=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    # Shares the host network namespace so the tailnet can reach the NAS itself
+    # and (with TS_ROUTES) the rest of your LAN. Incompatible with `networks`.
+    network_mode: host
+    restart: unless-stopped
+    profiles: [tailscale]
+
+networks:
+  # Reachable by cloudflared. Only the API joins this.
+  edge:
+  # AI services, Redis, and the API talk to each other here. Outbound NAT is
+  # required (DashScope, S3), so this is a normal bridge rather than an
+  # `internal` network; inbound is closed because no ports are published.
+  private:
+
+volumes:
+  redis-data:
+  tailscale-state:

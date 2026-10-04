@@ -52,5 +52,4 @@ video-service/storage/
 .husky/_/
 
 # Custom
-**/uv.lock
 assets/

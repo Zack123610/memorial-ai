@@ -20,6 +20,7 @@ CLIENT_PORT=5173
 SERVER_PORT=3001
 TTS_PORT=8200
 VIDEO_PORT=8300
+REDIS_PORT=6379
 
 SERVICES=(tts video server client)
 
@@ -55,6 +56,30 @@ port_of() {
 }
 
 listeners_on() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null || true; }
+
+# The server keeps job state in Redis, so this is required rather than
+# optional: without it POST /api/jobs returns 503. Docker is preferred for
+# parity with production; a Homebrew redis-server works just as well locally.
+start_redis() {
+  info "Starting Redis"
+  if [[ -n "$(listeners_on "$REDIS_PORT")" ]]; then
+    ok "redis already listening on $REDIS_PORT"
+    return 0
+  fi
+  if command -v docker >/dev/null 2>&1 &&
+     docker compose -f "$ROOT/docker-compose.yml" up -d redis >>"$LOG_DIR/redis.log" 2>&1; then
+    ok "redis running (docker)"
+    return 0
+  fi
+  if command -v redis-server >/dev/null 2>&1; then
+    redis-server --port "$REDIS_PORT" --daemonize yes \
+      --dir "$LOG_DIR" --logfile "$LOG_DIR/redis.log" && ok "redis running (redis-server)"
+    return 0
+  fi
+  err "redis is required for job state but could not be started"
+  err "install either: Docker Desktop, or 'brew install redis'"
+  return 1
+}
 
 # Free a port even if the owner is an orphan from an earlier session.
 free_port() {
@@ -187,14 +212,7 @@ cmd_start() {
   done
   ok "ports $TTS_PORT, $VIDEO_PORT, $SERVER_PORT, $CLIENT_PORT free"
 
-  info "Starting Redis"
-  if ! command -v docker >/dev/null 2>&1; then
-    warn "docker not installed — skipping redis (only needed for the BullMQ queue)"
-  elif docker compose -f "$ROOT/docker-compose.yml" up -d redis >>"$LOG_DIR/redis.log" 2>&1; then
-    ok "redis running"
-  else
-    warn "docker is installed but not running — skipping redis, see logs/redis.log"
-  fi
+  start_redis || exit 1
 
   info "Syncing Python dependencies"
   for svc in tts-service video-service; do
@@ -240,8 +258,9 @@ cmd_stop() {
     free_port "$(port_of "$svc")"
     ok "$svc stopped"
   done
-  if command -v docker >/dev/null 2>&1 && docker compose ps -q redis 2>/dev/null | grep -q .; then
-    warn "redis is left running — stop it with: docker compose down"
+  if [[ -n "$(listeners_on "$REDIS_PORT")" ]]; then
+    warn "redis is left running (job state) — stop it with 'docker compose down'"
+    warn "or 'redis-cli shutdown', depending on how it was started"
   fi
 }
 

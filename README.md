@@ -24,7 +24,7 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 ## Tech Stack
 
 - **Frontend:** React 18 + Vite + TailwindCSS
-- **Backend:** Node.js + Express + BullMQ (job queue), orchestrating the AI services over HTTP
+- **Backend:** Node.js + Express orchestrating the AI services over HTTP, with job state in Redis
 - **AI Pipeline:** Two standalone FastAPI microservices — [`tts-service`](./tts-service/README.md) and [`video-service`](./video-service/README.md)
 - **Voice Cloning:** Aliyun DashScope Qwen3-TTS voice cloning (`qwen-voice-enrollment` + `qwen3-tts-vc`) — clones a voice from a reference sample; see [`tts-service/`](./tts-service/README.md)
 - **Video Generation:** Aliyun DashScope Wan i2v (`wan2.6-i2v-flash`; image+audio → talking head) — see [`video-service/`](./video-service/README.md)
@@ -40,7 +40,9 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 
 ## Getting Started
 
-> **Prerequisites:** Node.js 20+, Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and Docker. Both AI services call Aliyun DashScope, so each needs a `DASHSCOPE_API_KEY`; `video-service` additionally needs an S3 bucket. No GPU is required.
+> **Prerequisites:** Node.js 20+, Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and Redis (via Docker or `brew install redis`). Both AI services call Aliyun DashScope, so each needs a `DASHSCOPE_API_KEY`; `video-service` additionally needs an S3 bucket. No GPU is required.
+
+> Deploying? See [DEPLOYMENT.md](./DEPLOYMENT.md) for the Cloudflare Pages + Tunnel + home-server setup.
 
 The app is made of **four processes**: the client + Express server (started together by `npm run dev`), plus the `tts-service` and `video-service` FastAPI apps (each started on its own). All four must be running for end-to-end generation.
 
@@ -97,8 +99,8 @@ Services run in the background and survive closing the terminal. Logs and pidfil
 Run each command in its **own terminal** and keep them running.
 
 ```bash
-# Terminal 1 — Redis (used by BullMQ)
-docker compose up -d redis
+# Terminal 1 — Redis (job state; required)
+docker compose up -d redis   # or: brew install redis && redis-server
 
 # Terminal 2 — React client + Express server
 npm run dev
