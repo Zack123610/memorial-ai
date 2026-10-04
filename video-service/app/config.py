@@ -23,10 +23,10 @@ class Settings(BaseSettings):
     video_host: str = "127.0.0.1"
     video_port: int = 8300
 
-    # --- DashScope (Aliyun) Wan2.7 i2v ---
+    # --- DashScope (Aliyun) Wan i2v ---
     dashscope_api_key: str = ""
-    video_dashscope_base: str = "https://dashscope-intl.aliyuncs.com"
-    video_dashscope_model: str = "wan2.7-i2v"
+    video_dashscope_base: str = "https://dashscope.aliyuncs.com"
+    video_dashscope_model: str = "wan2.6-i2v-flash"
 
     # --- Generation defaults (overridable per request) ---
     video_default_resolution: str = "720P"

@@ -5,6 +5,8 @@ export interface Job {
   status: JobStatus;
   detail: string | null;
   videoUrl: string | null;
+  imageUrl: string | null;
+  audioUrl: string | null;
   error: string | null;
   createdAt: number;
   updatedAt: number;

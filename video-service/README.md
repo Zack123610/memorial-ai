@@ -2,7 +2,8 @@
 
 Memorial AI's video-generation service. Turns a **portrait image** + an optional
 **driving audio** clip + a **prompt** into a talking-head farewell video, using
-Aliyun **DashScope Wan2.7 image-to-video (i2v)**.
+Aliyun **DashScope Wan image-to-video (i2v)** — `wan2.6-i2v-flash` by default,
+the cheapest audio-driven tier.
 
 FastAPI + `uv`, Python 3.12.
 
@@ -58,12 +59,14 @@ Longer audio is rejected outright:
 InvalidParameter: audio.wav duration should be at most 30s, got 37.04s
 ```
 
-The Express pipeline clamps `duration` to `VIDEO_DURATION_MIN`/`VIDEO_DURATION_MAX`
-(5–10s by default, set in the **root** `.env`, not this service's) but still sends
-the full cloned track. So the farewell text has to be short enough to be spoken
-within `VIDEO_DURATION_MAX` — roughly 30 words for the default 10s — otherwise the
-speech is cut off at the end of the video, or rejected once it passes 30s.
-Raise `VIDEO_DURATION_MAX` (up to 15) for longer messages.
+**The generated video length is decided by the Express pipeline, not by this
+service.** It measures the cloned speech, rounds up, and clamps to
+`VIDEO_DURATION_MIN`/`VIDEO_DURATION_MAX` from the **root** `.env` (5–15s) before
+calling `POST /api/v1/jobs` — so the video runs exactly as long as the sentence
+takes to say. `VIDEO_DURATION_MAX` is itself capped at the model's 15s ceiling,
+and a farewell too long to fit is rejected at `POST /api/jobs` rather than
+generated half-spoken. `VIDEO_DEFAULT_DURATION` here only applies to direct
+calls that omit `duration`.
 
 ```jsonc
 // 202
@@ -106,12 +109,23 @@ cp .env.example .env   # then fill in the values below
 
 Required in `.env`:
 
-- `DASHSCOPE_API_KEY` — Aliyun DashScope key, issued in the Singapore
-  (ap-southeast-1) region.
-- `VIDEO_DASHSCOPE_BASE` — `https://dashscope-intl.aliyuncs.com`, or the
-  workspace-specific `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com`.
-  The key and endpoint region must match, or every call fails with
-  `InvalidApiKey`.
+- `DASHSCOPE_API_KEY` — Aliyun DashScope key, issued in 华北2/Beijing
+  (`cn-beijing`), which is the cheapest region.
+- `VIDEO_DASHSCOPE_MODEL` — `wan2.6-i2v-flash` by default (Beijing: ¥0.3/s at
+  720P, half of `wan2.7-i2v`, which also works). The client switches request
+  shape per family: wan2.7 sends assets in an `input.media` array, wan2.6 and
+  earlier in `input.img_url` / `input.audio_url`. Both cap a clip at 15s and
+  driving audio at 30s. Keep `VIDEO_RESOLUTION=720P` in the root `.env` —
+  wan2.6 defaults to 1080P, which costs ¥0.5/s. For the wan2.6 family the
+  service also sends `parameters.audio: true`, because that flag outranks
+  `audio_url` and a silent clip would discard the cloned voice. `shot_type` is
+  left at its `single` default: multi-shot cuts fight a static talking head.
+- `VIDEO_DASHSCOPE_BASE` — `https://dashscope.aliyuncs.com`, or the faster
+  workspace-specific `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com`
+  (Singapore equivalents: `https://dashscope-intl.aliyuncs.com` and
+  `https://{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com`). The key and
+  endpoint region must match, or every call fails with `InvalidApiKey` — which
+  is also what an unfunded account returns, so check the balance first.
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — leave blank to use the default
   AWS credential chain (shared config / instance role) instead.
 - `S3_BUCKET` / `S3_REGION` — default to `img-web-req` / `ap-southeast-1`.

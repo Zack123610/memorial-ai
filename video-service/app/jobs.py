@@ -41,6 +41,10 @@ class Job:
     audio_url: str | None = None
     video_url: str | None = None
     error: str | None = None
+    # Caller-supplied ID (e.g. the Express server's job UUID). Used as the S3
+    # key prefix so the bucket layout mirrors the URL the user visits, instead
+    # of this service's internal hex job id. Falls back to `id` when absent.
+    external_id: str | None = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
 
@@ -85,6 +89,7 @@ class JobManager:
         watermark: bool,
         image: _Upload,
         audio: _Upload | None,
+        external_id: str | None = None,
     ) -> Job:
         job = Job(
             id=uuid.uuid4().hex,
@@ -93,6 +98,7 @@ class JobManager:
             duration=duration,
             prompt_extend=prompt_extend,
             watermark=watermark,
+            external_id=external_id,
         )
         self._jobs[job.id] = job
         task = asyncio.create_task(self._run(job, image, audio))
@@ -113,8 +119,11 @@ class JobManager:
         job.detail = detail
         job.touch()
 
-    def _key(self, prefix: str, job_id: str, name: str) -> str:
-        return f"{prefix.strip('/')}/{job_id}/{name}"
+    def _key(self, prefix: str, job: Job, name: str) -> str:
+        # Prefer the caller's external id so the S3 layout matches the URL the
+        # user browses (e.g. /jobs/<uuid> -> memorial/inputs/<uuid>/image.jpg).
+        owner = job.external_id or job.id
+        return f"{prefix.strip('/')}/{owner}/{name}"
 
     async def _run(self, job: Job, image: _Upload, audio: _Upload | None) -> None:
         try:
@@ -139,14 +148,14 @@ class JobManager:
         job.image_url = await asyncio.to_thread(
             self._storage.put_bytes,
             image.data,
-            self._key(in_prefix, job.id, f"image{image.ext}"),
+            self._key(in_prefix, job, f"image{image.ext}"),
             image.content_type,
         )
         if audio is not None:
             job.audio_url = await asyncio.to_thread(
                 self._storage.put_bytes,
                 audio.data,
-                self._key(in_prefix, job.id, f"audio{audio.ext}"),
+                self._key(in_prefix, job, f"audio{audio.ext}"),
                 audio.content_type,
             )
         job.touch()
@@ -203,5 +212,5 @@ class JobManager:
         """
         r = await self._http.get(video_url)
         r.raise_for_status()
-        key = self._key(self._settings.s3_output_prefix, job.id, "video.mp4")
+        key = self._key(self._settings.s3_output_prefix, job, "video.mp4")
         return await asyncio.to_thread(self._storage.put_bytes, r.content, key, "video/mp4")

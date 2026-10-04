@@ -5,7 +5,7 @@ Sample inputs for the Create form (/create).
   voice-transcript.txt   Paste this as the voice-sample transcript
   farewell.txt           28-word farewell / last wish
 
-Keep the farewell short. The cloned speech drives the video, and Wan i2v
-accepts at most 30s of audio while the pipeline caps the video at
-VIDEO_DURATION_MAX (10s by default), so a longer message is cut off.
-Roughly 30 words fits a 10s video.
+Keep the farewell short. The cloned speech drives the video and Wan i2v caps a
+clip at 15s, so the Create form rejects anything longer than VIDEO_DURATION_MAX
+(15s ≈ 162 characters of English, 54 of Chinese). This sample is 146
+characters, which clones to ~12.3s of speech and a 13s video.

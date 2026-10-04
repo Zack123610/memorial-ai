@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Page from '../components/Page';
 import { createJob } from '../services/api';
-import { CREATE_LIMITS, measureAudioDuration, validateCreateInput } from '../lib/validation';
+import {
+  CREATE_LIMITS,
+  measureAudioDuration,
+  textBudgetFor,
+  validateCreateInput,
+} from '../lib/validation';
 import { stagger, riseItem, ease } from '../lib/motion';
 
 const inputClass =
@@ -35,6 +40,7 @@ export default function Create() {
   const [error, setError] = useState<string | null>(null);
 
   const ready = Boolean(image && audio && refText.trim() && text.trim());
+  const textBudget = textBudgetFor(language);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -54,6 +60,7 @@ export default function Create() {
         audio,
         refText,
         text,
+        language,
         audioSeconds,
       });
       if (validationError) {
@@ -127,13 +134,13 @@ export default function Create() {
 
           <Field
             label="Farewell message"
-            hint={`${text.trim().length}/${CREATE_LIMITS.maxTextChars}`}
+            hint={`${text.trim().length}/${textBudget} · up to ${CREATE_LIMITS.maxSpeechSeconds}s spoken`}
           >
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={5}
-              maxLength={CREATE_LIMITS.maxTextChars}
+              maxLength={textBudget}
               placeholder="The words you want spoken in the video"
               className={inputClass}
             />

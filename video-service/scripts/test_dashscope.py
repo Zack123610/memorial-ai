@@ -1,4 +1,4 @@
-"""Test DashScope Wan2.7 i2v video synthesis end-to-end using S3-hosted media.
+"""Test DashScope Wan i2v video synthesis end-to-end using S3-hosted media.
 
 Usage:
     uv run python scripts/test_dashscope.py [--image FILENAME_OR_URL] [--audio FILENAME_OR_URL] \
@@ -44,6 +44,24 @@ def to_url(value: str | None) -> str | None:
     return f"{S3_BASE}/{value}"
 
 
+def build_input(model: str, prompt: str, image_url: str, audio_url: str | None) -> dict:
+    """Mirror of app.dashscope.build_input; kept inline so this probe stands alone.
+
+    wan2.7 passes assets through a ``media`` array, wan2.6 and earlier through
+    flat ``img_url`` / ``audio_url`` fields.
+    """
+    if model.startswith("wan2.7"):
+        media: list[dict] = [{"type": "first_frame", "url": image_url}]
+        if audio_url:
+            media.append({"type": "driving_audio", "url": audio_url})
+        return {"prompt": prompt, "media": media}
+
+    payload = {"prompt": prompt, "img_url": image_url}
+    if audio_url:
+        payload["audio_url"] = audio_url
+    return payload
+
+
 DEFAULT_PROMPT = (
     "An elderly man speaking warmly and calmly to the camera in a quiet room, "
     "gentle natural lighting, dignified mood, subtle head movements that match the audio."
@@ -63,16 +81,9 @@ def submit_job(
     prompt_extend: bool,
     watermark: bool,
 ) -> str:
-    media: list[dict] = [{"type": "first_frame", "url": image_url}]
-    if audio_url:
-        media.append({"type": "driving_audio", "url": audio_url})
-
     payload = {
         "model": model,
-        "input": {
-            "prompt": prompt,
-            "media": media,
-        },
+        "input": build_input(model, prompt, image_url, audio_url),
         "parameters": {
             "resolution": resolution,
             "duration": duration,
@@ -139,7 +150,7 @@ def download_video(client: httpx.Client, url: str, dest: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Test DashScope Wan2.7 i2v end-to-end")
+    parser = argparse.ArgumentParser(description="Test DashScope Wan i2v end-to-end")
     parser.add_argument(
         "--image",
         default="old_man_chatgpt.jpeg",
@@ -159,8 +170,8 @@ def main() -> int:
         print("error: DASHSCOPE_API_KEY not set (export it or paste into .env)", file=sys.stderr)
         return 2
 
-    base = os.environ.get("VIDEO_DASHSCOPE_BASE", "https://dashscope-intl.aliyuncs.com").rstrip("/")
-    model = os.environ.get("VIDEO_DASHSCOPE_MODEL", "wan2.7-i2v")
+    base = os.environ.get("VIDEO_DASHSCOPE_BASE", "https://dashscope.aliyuncs.com").rstrip("/")
+    model = os.environ.get("VIDEO_DASHSCOPE_MODEL", "wan2.6-i2v-flash")
     resolution = os.environ.get("VIDEO_DEFAULT_RESOLUTION", "720P")
     duration = int(os.environ.get("VIDEO_DEFAULT_DURATION", "5"))
     prompt_extend = os.environ.get("VIDEO_DEFAULT_PROMPT_EXTEND", "true").lower() == "true"

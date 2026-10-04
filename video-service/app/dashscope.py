@@ -1,4 +1,4 @@
-"""Async DashScope Wan2.7 i2v client.
+"""Async DashScope Wan i2v client.
 
 Mirrors the proven flow in scripts/test_dashscope.py: submit an async
 video-synthesis job, then poll /api/v1/tasks/{id} until it settles.
@@ -13,6 +13,24 @@ from .config import Settings
 
 class DashScopeError(RuntimeError):
     """Raised when DashScope rejects a request or a task ends unsuccessfully."""
+
+
+def build_input(model: str, prompt: str, image_url: str, audio_url: str | None) -> dict:
+    """Assemble the ``input`` block for a video-synthesis request.
+
+    wan2.7 passes every asset through a ``media`` array; wan2.6 and earlier
+    take the flat ``img_url`` / ``audio_url`` form and reject ``media``.
+    """
+    if model.startswith("wan2.7"):
+        media: list[dict] = [{"type": "first_frame", "url": image_url}]
+        if audio_url:
+            media.append({"type": "driving_audio", "url": audio_url})
+        return {"prompt": prompt, "media": media}
+
+    payload = {"prompt": prompt, "img_url": image_url}
+    if audio_url:
+        payload["audio_url"] = audio_url
+    return payload
 
 
 class DashScopeClient:
@@ -36,19 +54,22 @@ class DashScopeClient:
         watermark: bool,
     ) -> str:
         """Submit an async video-synthesis job and return its task_id."""
-        media: list[dict] = [{"type": "first_frame", "url": image_url}]
-        if audio_url:
-            media.append({"type": "driving_audio", "url": audio_url})
+        model = self._settings.video_dashscope_model
+        parameters: dict = {
+            "resolution": resolution,
+            "duration": duration,
+            "prompt_extend": prompt_extend,
+            "watermark": watermark,
+        }
+        if audio_url and not model.startswith("wan2.7"):
+            # wan2.6 prices silent output separately and `audio` outranks
+            # `audio_url`: leaving it false would drop the cloned voice.
+            parameters["audio"] = True
 
         payload = {
-            "model": self._settings.video_dashscope_model,
-            "input": {"prompt": prompt, "media": media},
-            "parameters": {
-                "resolution": resolution,
-                "duration": duration,
-                "prompt_extend": prompt_extend,
-                "watermark": watermark,
-            },
+            "model": model,
+            "input": build_input(model, prompt, image_url, audio_url),
+            "parameters": parameters,
         }
         r = await self._client.post(
             f"{self._base}/api/v1/services/aigc/video-generation/video-synthesis",

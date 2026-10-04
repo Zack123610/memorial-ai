@@ -5,7 +5,7 @@ import type { TtsClient, TtsLanguage } from '../services/tts.js';
 import type { VideoClient } from '../services/video.js';
 import type { JobStore } from './store.js';
 
-/** Fixed scene/motion prompt for the talking-head video (Wan2.7 i2v). */
+/** Fixed scene/motion prompt for the talking-head video (Wan i2v). */
 const DEFAULT_VIDEO_PROMPT =
   'A person speaking warmly and calmly to the camera, gentle natural head movement, soft even lighting. Clear frontal face, natural lip sync with the audio.';
 
@@ -88,13 +88,14 @@ export async function runPipeline(
       duration,
       promptExtend: config.video.promptExtend,
       watermark: config.video.watermark,
+      externalId: jobId,
     });
 
-    const { videoUrl } = await video.waitForCompletion(videoJobId, (detail) =>
+    const { videoUrl, imageUrl, audioUrl } = await video.waitForCompletion(videoJobId, (detail) =>
       store.update(jobId, { detail }),
     );
 
-    store.update(jobId, { status: 'completed', detail: null, videoUrl });
+    store.update(jobId, { status: 'completed', detail: null, videoUrl, imageUrl, audioUrl });
   } catch (err) {
     console.error(`[pipeline] job ${jobId} failed:`, err);
     store.update(jobId, {

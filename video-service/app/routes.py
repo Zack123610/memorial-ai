@@ -60,6 +60,7 @@ async def create_job(
     duration: int | None = Form(None),
     prompt_extend: bool | None = Form(None),
     watermark: bool | None = Form(None),
+    external_id: str | None = Form(None),
 ) -> JobCreatedResponse:
     settings = _settings(request)
     if not settings.dashscope_api_key:
@@ -84,6 +85,7 @@ async def create_job(
         watermark=watermark if watermark is not None else settings.video_default_watermark,
         image=image_upload,
         audio=audio_upload,
+        external_id=external_id,
     )
     return JobCreatedResponse(job_id=job.id, status=job.status)
 

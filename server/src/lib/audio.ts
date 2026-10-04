@@ -24,7 +24,10 @@ export function wavDurationSeconds(buf: Buffer): number | null {
       sampleRate = buf.readUInt32LE(start + 4);
       bitsPerSample = buf.readUInt16LE(start + 14);
     } else if (id === 'data') {
-      dataSize = size;
+      // DashScope streams TTS output, so its header declares a placeholder
+      // data size (~2 GB). Trust the bytes we actually hold when the header
+      // over-promises, otherwise every clip looks 12 hours long.
+      dataSize = Math.min(size, buf.length - start);
       break;
     }
 
@@ -37,13 +40,23 @@ export function wavDurationSeconds(buf: Buffer): number | null {
   return dataSize / (sampleRate * bytesPerSample);
 }
 
+// ~12 English chars/sec of speech; Chinese is denser (~4 chars/sec of CJK).
+const CHARS_PER_SECOND = { English: 12, Chinese: 4 } as const;
+
 /** Rough spoken duration estimate when we cannot measure the audio container. */
 export function estimateSpeechSeconds(text: string, language: 'English' | 'Chinese'): number {
   const trimmed = text.trim();
   if (!trimmed) return 0;
-  // ~12 English chars/sec; Chinese is denser (~4 chars/sec of CJK).
-  const rate = language === 'Chinese' ? 4 : 12;
-  return trimmed.length / rate;
+  return trimmed.length / CHARS_PER_SECOND[language];
+}
+
+/**
+ * Inverse of {@link estimateSpeechSeconds}: how much text fits a video length.
+ * Keeps 10% headroom, since the real TTS rate varies and overshooting the cap
+ * means the video ends mid-sentence.
+ */
+export function textBudgetFor(seconds: number, language: 'English' | 'Chinese'): number {
+  return Math.floor(seconds * CHARS_PER_SECOND[language] * 0.9);
 }
 
 /** Clamp a measured/estimated duration into the Wan i2v window. */

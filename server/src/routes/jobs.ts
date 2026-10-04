@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { config } from '../config/env.js';
+import { estimateSpeechSeconds, textBudgetFor } from '../lib/audio.js';
 import { uploadJobFiles } from '../middleware/upload.js';
 import { runPipeline, type PipelineDeps } from '../jobs/pipeline.js';
 import type { TtsLanguage } from '../services/tts.js';
@@ -41,13 +42,21 @@ export function createJobsRouter(deps: PipelineDeps): Router {
         error: `refText must be at most ${config.limits.maxRefTextChars} characters`,
       });
     }
-    if (text.length > config.limits.maxTextChars) {
+    const lang: TtsLanguage = body.language === 'Chinese' ? 'Chinese' : 'English';
+
+    // The video is exactly as long as the cloned speech, and Wan i2v caps that.
+    // Reject here rather than paying for TTS and truncating the sentence later.
+    const speechSeconds = estimateSpeechSeconds(text, lang);
+    const textBudget = Math.min(
+      config.limits.maxTextChars,
+      textBudgetFor(config.video.maxDuration, lang),
+    );
+    if (text.length > textBudget) {
       return res.status(422).json({
-        error: `text must be at most ${config.limits.maxTextChars} characters (about ${config.video.maxDuration}s of speech)`,
+        error: `text is about ${Math.ceil(speechSeconds)}s of speech but the video can be at most ${config.video.maxDuration}s — keep it under ${textBudget} characters`,
       });
     }
 
-    const lang: TtsLanguage = body.language === 'Chinese' ? 'Chinese' : 'English';
     const job = deps.store.create();
     res.status(202).json({ jobId: job.id, status: job.status });
 

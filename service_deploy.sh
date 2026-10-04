@@ -142,13 +142,25 @@ wait_healthy() {
 #
 # macOS has no setsid(1), so python3 provides start_new_session.
 spawn() {
-  local name="$1" dir="$2"; shift 2
-  DETACH_DIR="$dir" DETACH_LOG="$LOG_DIR/$name.log" \
+  local name="$1" dir="$2" envfile="$3"; shift 3
+  DETACH_DIR="$dir" DETACH_LOG="$LOG_DIR/$name.log" DETACH_ENV_FILE="$envfile" \
     "$DETACH_PY" -c '
 import os, subprocess, sys
+
+# Drop inherited copies of everything the service .env defines. Both
+# python-dotenv and pydantic-settings let the real environment win, so a stale
+# export in the launching shell would silently shadow the file (e.g. an old
+# DASHSCOPE_API_KEY, which surfaces much later as a 401 InvalidApiKey).
+env = os.environ.copy()
+with open(os.environ["DETACH_ENV_FILE"]) as f:
+    for line in f:
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            env.pop(line.split("=", 1)[0].strip(), None)
+
 log = open(os.environ["DETACH_LOG"], "ab", buffering=0)
 proc = subprocess.Popen(
-    sys.argv[1:], cwd=os.environ["DETACH_DIR"],
+    sys.argv[1:], cwd=os.environ["DETACH_DIR"], env=env,
     stdout=log, stderr=log, stdin=subprocess.DEVNULL,
     start_new_session=True,
 )
@@ -190,10 +202,12 @@ cmd_start() {
   done
 
   info "Starting services"
-  spawn tts    "$ROOT/tts-service"   uv run uvicorn app.main:app --host 127.0.0.1 --port "$TTS_PORT"
-  spawn video  "$ROOT/video-service" uv run uvicorn app.main:app --host 127.0.0.1 --port "$VIDEO_PORT"
-  spawn server "$ROOT"               npm run dev:server
-  spawn client "$ROOT"               npm run dev:client
+  spawn tts    "$ROOT/tts-service"   "$ROOT/tts-service/.env"   \
+    uv run uvicorn app.main:app --host 127.0.0.1 --port "$TTS_PORT"
+  spawn video  "$ROOT/video-service" "$ROOT/video-service/.env" \
+    uv run uvicorn app.main:app --host 127.0.0.1 --port "$VIDEO_PORT"
+  spawn server "$ROOT"               "$ROOT/.env"               npm run dev:server
+  spawn client "$ROOT"               "$ROOT/.env"               npm run dev:client
 
   info "Waiting for health checks"
   local failed=0

@@ -16,7 +16,13 @@
  */
 
 import { Buffer } from 'node:buffer';
+import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const readData = (name) => readFile(resolve(ROOT, 'data', name));
 
 const SERVER_URL = (process.env.SERVER_URL ?? 'http://localhost:3001').replace(/\/$/, '');
 const LIVE = process.env.E2E_LIVE === '1';
@@ -93,7 +99,7 @@ function wavDurationSeconds(buf) {
       sampleRate = buf.readUInt32LE(start + 4);
       bitsPerSample = buf.readUInt16LE(start + 14);
     } else if (id === 'data') {
-      dataSize = size;
+      dataSize = Math.min(size, buf.length - start);
       break;
     }
     offset = start + size + (size % 2);
@@ -118,6 +124,17 @@ async function runUnitChecks() {
     ok('wavDurationSeconds reads 4s PCM WAV');
   } catch (err) {
     fail('wavDurationSeconds', err);
+  }
+
+  try {
+    // DashScope streams TTS output with a placeholder data size in the header.
+    const streamed = sineWav(4);
+    streamed.writeUInt32LE(0x7fffffdb, 40);
+    const dur = wavDurationSeconds(streamed);
+    assert(dur !== null && Math.abs(dur - 4) < 0.05, `expected ~4s, got ${dur}`);
+    ok('wavDurationSeconds ignores a streaming placeholder data size');
+  } catch (err) {
+    fail('wavDurationSeconds streaming header', err);
   }
 
   try {
@@ -189,13 +206,17 @@ async function runApiValidation() {
 async function runLivePipeline() {
   console.log('\n[live] full upload → generate → download URL');
   const form = new FormData();
-  form.append('image', new Blob([tinyJpeg()], { type: 'image/jpeg' }), 'face.jpg');
-  form.append('audio', new Blob([sineWav(5)], { type: 'audio/wav' }), 'voice.wav');
-  form.append('refText', 'This is a short test of my voice for cloning.');
-  form.append(
-    'text',
-    'Hello my dear family. Thank you for being here today. I love you all.',
-  );
+  // wan2.6-i2v-flash rejects images smaller than 240px, so use the real
+  // portrait from data/ instead of tinyJpeg(). Likewise use the real voice
+  // sample so the clone has genuine material to learn from.
+  const image = await readData('portrait.jpg');
+  const audio = await readData('my-sample-voice.wav');
+  const refText = (await readData('voice-transcript.txt')).toString('utf8').trim();
+  const text = (await readData('farewell.txt')).toString('utf8').trim();
+  form.append('image', new Blob([image], { type: 'image/jpeg' }), 'portrait.jpg');
+  form.append('audio', new Blob([audio], { type: 'audio/wav' }), 'voice.wav');
+  form.append('refText', refText);
+  form.append('text', text);
   form.append('language', 'English');
 
   const created = await fetch(`${SERVER_URL}/api/jobs`, { method: 'POST', body: form });
