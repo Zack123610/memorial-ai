@@ -5,31 +5,38 @@ Cloudflare Pages, everything else in Docker on a home server (UGREEN NASync
 DXP4800 Pro), reachable only through a Cloudflare Tunnel gated by Cloudflare
 Access.
 
-Replace `example.com` throughout with your own domain.
+Hostnames for `zackee.dev`:
+
+- SPA: `https://memorial-ai.zackee.dev` (Cloudflare Pages)
+- API: `https://api.memorial-ai.zackee.dev` (Cloudflare Tunnel)
+
+Both sit under `zackee.dev`, so the browser treats them as the same site and
+will send the Access cookie on API calls. The API uses its own subdomain so
+`api.zackee.dev` stays free for anything else.
 
 ```
-                 ┌─────────────────────────┐
-  browser ──────▶│ app.example.com (Pages) │  static SPA, free CDN
-                 └─────────────────────────┘
+                        ┌──────────────────────────────────┐
+  browser ─────────────▶│ memorial-ai.zackee.dev           │  Pages, static SPA
+                        └──────────────────────────────────┘
       │
       │ XHR + WebSocket (credentials: include)
       ▼
-  ┌──────────────────────┐
-  │ api.example.com      │  Cloudflare Access: email allowlist + one-time PIN
-  │ Cloudflare Tunnel    │
-  └──────────┬───────────┘
-             │ outbound-only, no open ports
-  ┌──────────▼────────────────────────────────────────┐
-  │ NAS — docker-compose.prod.yml                     │
-  │                                                   │
-  │  edge network:     cloudflared ─▶ server:3001     │
-  │  private network:  server ─▶ tts:8200             │
-  │                    server ─▶ video:8300           │
-  │                    server ─▶ redis:6379           │
-  └───────────────────────────────────────────────────┘
-             │                       │
-             ▼                       ▼
-      DashScope (Beijing)      S3 (presigned URLs)
+  ┌────────────────────────────────────────┐
+  │ api.memorial-ai.zackee.dev             │  Access: any GitHub account
+  │ Cloudflare Tunnel                      │
+  └──────────────────┬─────────────────────┘
+                     │ outbound-only, no open ports
+  ┌──────────────────▼─────────────────────────────────────┐
+  │ NAS — docker-compose.prod.yml                          │
+  │                                                        │
+  │  edge network:     cloudflared ─▶ server:3001          │
+  │  private network:  server ─▶ tts:8200                  │
+  │                    server ─▶ video:8300                │
+  │                    server ─▶ redis:6379                │
+  └────────────────────────────────────────────────────────┘
+                     │                       │
+                     ▼                       ▼
+              DashScope (Beijing)      S3 (presigned URLs)
 ```
 
 Two deliberate choices:
@@ -46,7 +53,7 @@ Two deliberate choices:
 
 ## 1. Prerequisites
 
-- A domain on Cloudflare (nameservers pointed at Cloudflare — "Full setup").
+- `zackee.dev` on Cloudflare, which it already is.
 - Docker with Compose on the NAS. On UGOS Pro: App Center → Docker, then use
   the Docker app's **Project** feature or SSH in and run Compose directly.
 - The three `.env` files filled in, copied to the NAS alongside the repo:
@@ -61,7 +68,8 @@ Two deliberate choices:
    TUNNEL_TOKEN=eyJhIjoi...
    ```
 3. Under **Routes → Add route → Published application**:
-   - Hostname: `api` + `example.com`
+   - Subdomain: `api.memorial-ai`
+   - Domain: `zackee.dev`
    - Service URL: `http://server:3001`
 
    `server` is the Compose service name; cloudflared resolves it over the
@@ -72,44 +80,75 @@ what Socket.IO needs.
 
 ## 3. Cloudflare Access
 
-This is what keeps the app private and stops strangers spending your DashScope
-credit.
+Sign-in is "Continue with GitHub". There is no email list to maintain: anyone
+with a GitHub account can open the app, and everyone else never reaches it.
+The existing quotas (`QUOTA_USER_HOUR`, `QUOTA_USER_DAY`, `QUOTA_GLOBAL_DAY`)
+are what bound DashScope spend if the URL spreads. The free Access plan covers
+50 distinct users; the 51st GitHub account cannot sign in until you remove
+someone or move off the free plan.
 
-1. Zero Trust → **Settings → Custom Pages** shows your team domain, e.g.
-   `yourteam.cloudflareaccess.com`. Note it.
-2. **Settings → Authentication → Login methods** → add **One-time PIN** if it
-   isn't there. Testers then need no account anywhere, just an inbox.
-3. **Access → Applications → Add an application → Self-hosted.**
-4. Add **both** hostnames to this _one_ application:
-   - `app.example.com` (the Pages site)
-   - `api.example.com` (the tunnel)
+### 3.1 GitHub as the login method
 
-   One application covering both means a single sign-in issues a
+You do not need a GitHub organization.
+
+1. Zero Trust → **Settings → Custom Pages** (or **Team name and domain**) shows
+   your team name. The team domain is `https://<team-name>.cloudflareaccess.com`.
+   Note it.
+2. On GitHub: **Settings → Developer settings → OAuth Apps → New OAuth App.**
+   - Application name: `Memorial AI`
+   - Homepage URL: `https://<team-name>.cloudflareaccess.com`
+   - Authorization callback URL:
+     `https://<team-name>.cloudflareaccess.com/cdn-cgi/access/callback`
+3. Register the app, copy the **Client ID**, then **Generate a new client secret**
+   and copy that too. The secret is shown once.
+4. Zero Trust → **Integrations → Identity providers → Add new identity provider
+   → GitHub.** Paste the Client ID as App ID and the client secret, then Save.
+5. **Finish setup** and authorize the two read-only scopes GitHub asks for
+   (organizations and teams, email addresses). Then use **Test** next to the
+   GitHub provider. If your own GitHub account has 2FA, sign in to GitHub in
+   that browser first or the test bounces.
+
+### 3.2 The application
+
+1. **Access → Applications → Add an application → Self-hosted.**
+2. Add **both** hostnames to this _one_ application:
+   - `memorial-ai.zackee.dev` (the Pages site)
+   - `api.memorial-ai.zackee.dev` (the tunnel)
+
+   One application covering both means a single GitHub sign-in issues a
    `CF_Authorization` cookie for each. Leave **Eager redirect cookie** on so
-   the cookie for `api.example.com` exists before the SPA makes its first
-   request. Two separate applications would force users to log in twice, and
-   the SPA's first API call would fail.
+   the cookie for `api.memorial-ai.zackee.dev` exists before the SPA makes its
+   first request. Two separate applications would force users to log in twice,
+   and the SPA's first API call would fail.
 
-5. Turn on **Bypass OPTIONS requests to origin.**
+3. Turn on **Bypass OPTIONS requests to origin.**
 
    This is mandatory, not optional. Browsers never attach cookies to CORS
    preflight `OPTIONS` requests, so Access would reject the preflight with a
    403 and the multipart `POST /api/jobs` would fail before it ever reached the
    server. Because preflights now skip Access, the API re-verifies the Access
-   JWT itself — see step 7.
+   JWT itself — see the env vars below.
 
-6. Policy: **Allow**, with an **Emails** include rule listing you and your
-   testers. The free plan covers 50 users.
-7. On the application overview, copy the **Application Audience (AUD) tag**
+4. Policy: **Allow**, with a single include rule:
+
+   | Rule    | Selector      | Value  |
+   | ------- | ------------- | ------ |
+   | Include | Login Methods | GitHub |
+
+   That is the whole allowlist. A later narrowing to one GitHub organization is
+   a second include or require rule in this same screen; the app does not change.
+
+5. On the application overview, copy the **Application Audience (AUD) tag**
    into the repo-root `.env`:
    ```
-   CF_ACCESS_TEAM_DOMAIN=yourteam.cloudflareaccess.com
+   CF_ACCESS_TEAM_DOMAIN=<team-name>.cloudflareaccess.com
    CF_ACCESS_AUD=<aud tag>
    CF_ACCESS_REQUIRED=true
    ```
    The server verifies every request's `Cf-Access-Jwt-Assertion` against your
    team's JWKS. Access already checks this at the edge; doing it again at the
    origin means a request that arrives by any other path is still rejected.
+   The GitHub email inside that token is what the per-user quota keys off.
 
 ## 4. The NAS stack
 
@@ -117,7 +156,7 @@ In the repo-root `.env`, point CORS at the Pages hostname:
 
 ```
 NODE_ENV=production
-CORS_ORIGINS=https://app.example.com
+CORS_ORIGINS=https://memorial-ai.zackee.dev
 ```
 
 Then bring it up:
@@ -149,15 +188,15 @@ docker compose -f docker-compose.prod.yml exec server \
 3. Environment variables (Production **and** Preview):
    ```
    NODE_VERSION   = 20
-   VITE_API_BASE  = https://api.example.com
-   VITE_SOCKET_URL= https://api.example.com
+   VITE_API_BASE  = https://api.memorial-ai.zackee.dev
+   VITE_SOCKET_URL= https://api.memorial-ai.zackee.dev
    ```
    These are read at build time, so changing them needs a redeploy.
-4. **Custom domains → Set up a custom domain** → `app.example.com`.
+4. **Custom domains → Set up a custom domain** → `memorial-ai.zackee.dev`.
 
 `client/public/_redirects` handles SPA deep links such as `/jobs/<uuid>`.
 
-One thing to know: Access protects `app.example.com`, but per-deployment
+One thing to know: Access protects `memorial-ai.zackee.dev`, but per-deployment
 preview URLs like `<hash>.memorial-ai.pages.dev` are not covered by that
 policy. That is harmless here — the SPA contains no secrets and is useless
 without the API, which does require Access — but don't treat a `pages.dev` URL
@@ -188,15 +227,15 @@ non-commercial use only.
 
 ```bash
 # Health is intentionally unauthenticated, so this should answer from anywhere.
-curl -s https://api.example.com/api/health | jq
+curl -s https://api.memorial-ai.zackee.dev/api/health | jq
 
 # Generation is not. Expect 401 with code ACCESS_REQUIRED.
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://api.example.com/api/jobs
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://api.memorial-ai.zackee.dev/api/jobs
 ```
 
-Then in a browser: open `https://app.example.com`, sign in with the one-time
-PIN, and run one full generation. Confirm that progress updates arrive (that
-proves the authenticated WebSocket works) and that the finished video plays.
+Then in a browser: open `https://memorial-ai.zackee.dev`, sign in with GitHub,
+and run one full generation. Confirm that progress updates arrive (that proves
+the authenticated WebSocket works) and that the finished video plays.
 
 ## 8. Cost
 
@@ -242,7 +281,7 @@ storage free, zero egress). `video-service` is ready for it — set
 requests to origin" is off on the Access application, or `CORS_ORIGINS` does
 not exactly match the Pages origin (scheme included, no trailing slash).
 
-**Requests succeed from `api.example.com` directly but fail from the app.** The
+**Requests succeed from `api.memorial-ai.zackee.dev` directly but fail from the app.** The
 two hostnames are in separate Access applications. Put both in one, with eager
 redirect cookies on.
 
@@ -255,4 +294,4 @@ both hostnames sit under the same apex domain.
 
 **WebSocket connects then immediately disconnects.** The handshake failed Access
 verification. Confirm `CF_ACCESS_AUD` matches the application serving
-`api.example.com`.
+`api.memorial-ai.zackee.dev`.
