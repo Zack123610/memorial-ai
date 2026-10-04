@@ -8,11 +8,16 @@ Access.
 Hostnames for `zackee.dev`:
 
 - SPA: `https://memorial-ai.zackee.dev` (Cloudflare Pages)
-- API: `https://api.memorial-ai.zackee.dev` (Cloudflare Tunnel)
+- API: `https://memorial-api.zackee.dev` (Cloudflare Tunnel)
 
 Both sit under `zackee.dev`, so the browser treats them as the same site and
 will send the Access cookie on API calls. The API uses its own subdomain so
 `api.zackee.dev` stays free for anything else.
+
+> The API hostname must stay **one level deep**. Cloudflare's free Universal
+> SSL certificate only covers `zackee.dev` and `*.zackee.dev`; a nested name
+> like `api.memorial-ai.zackee.dev` gets an SSL handshake failure at the edge
+> unless you pay for Advanced Certificate Manager or Total TLS.
 
 ```
                         ┌──────────────────────────────────┐
@@ -22,12 +27,12 @@ will send the Access cookie on API calls. The API uses its own subdomain so
       │ XHR + WebSocket (credentials: include)
       ▼
   ┌────────────────────────────────────────┐
-  │ api.memorial-ai.zackee.dev             │  Access: any GitHub account
+  │ memorial-api.zackee.dev             │  Access: any GitHub account
   │ Cloudflare Tunnel                      │
   └──────────────────┬─────────────────────┘
                      │ outbound-only, no open ports
   ┌──────────────────▼─────────────────────────────────────┐
-  │ NAS — docker-compose.prod.yml                          │
+  │ NAS — docker-compose-prod.yml                          │
   │                                                        │
   │  edge network:     cloudflared ─▶ server:3001          │
   │  private network:  server ─▶ tts:8200                  │
@@ -68,7 +73,7 @@ Two deliberate choices:
    TUNNEL_TOKEN=eyJhIjoi...
    ```
 3. Under **Routes → Add route → Published application**:
-   - Subdomain: `api.memorial-ai`
+   - Subdomain: `memorial-api`
    - Domain: `zackee.dev`
    - Service URL: `http://server:3001`
 
@@ -113,11 +118,11 @@ You do not need a GitHub organization.
 1. **Access → Applications → Add an application → Self-hosted.**
 2. Add **both** hostnames to this _one_ application:
    - `memorial-ai.zackee.dev` (the Pages site)
-   - `api.memorial-ai.zackee.dev` (the tunnel)
+   - `memorial-api.zackee.dev` (the tunnel)
 
    One application covering both means a single GitHub sign-in issues a
    `CF_Authorization` cookie for each. Leave **Eager redirect cookie** on so
-   the cookie for `api.memorial-ai.zackee.dev` exists before the SPA makes its
+   the cookie for `memorial-api.zackee.dev` exists before the SPA makes its
    first request. Two separate applications would force users to log in twice,
    and the SPA's first API call would fail.
 
@@ -162,16 +167,16 @@ CORS_ORIGINS=https://memorial-ai.zackee.dev
 Then bring it up:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f server
+docker compose -f docker-compose-prod.yml up -d --build
+docker compose -f docker-compose-prod.yml ps
+docker compose -f docker-compose-prod.yml logs -f server
 ```
 
 Nothing is published to the host. To reach the API from the NAS itself for
 debugging:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec server \
+docker compose -f docker-compose-prod.yml exec server \
   node -e "fetch('http://127.0.0.1:3001/api/health').then(r=>r.text()).then(console.log)"
 ```
 
@@ -188,8 +193,8 @@ docker compose -f docker-compose.prod.yml exec server \
 3. Environment variables (Production **and** Preview):
    ```
    NODE_VERSION   = 20
-   VITE_API_BASE  = https://api.memorial-ai.zackee.dev
-   VITE_SOCKET_URL= https://api.memorial-ai.zackee.dev
+   VITE_API_BASE  = https://memorial-api.zackee.dev
+   VITE_SOCKET_URL= https://memorial-api.zackee.dev
    ```
    These are read at build time, so changing them needs a redeploy.
 4. **Custom domains → Set up a custom domain** → `memorial-ai.zackee.dev`.
@@ -208,7 +213,10 @@ Deliberately separate from the public tunnel: this path is for you, not for app
 users. Never route the UGOS admin panel or SSH through the Cloudflare tunnel.
 
 Either install Tailscale from the UGOS App Center, or use the bundled Compose
-service. Generate an auth key in the Tailscale admin console, then:
+service. The service ships commented out in `docker-compose-prod.yml` —
+uncomment the whole block (including `profiles: [tailscale]` and the
+`tailscale-state` volume) first. Generate an auth key in the Tailscale admin
+console, then:
 
 ```bash
 # in .env
@@ -216,7 +224,7 @@ TS_AUTHKEY=tskey-auth-...
 TS_HOSTNAME=memorial-nas
 TS_ROUTES=192.168.1.0/24   # your LAN, so the whole subnet is reachable
 
-docker compose -f docker-compose.prod.yml --profile tailscale up -d
+docker compose -f docker-compose-prod.yml --profile tailscale up -d
 ```
 
 Approve the advertised subnet route in the Tailscale admin console. The free
@@ -227,10 +235,10 @@ non-commercial use only.
 
 ```bash
 # Health is intentionally unauthenticated, so this should answer from anywhere.
-curl -s https://api.memorial-ai.zackee.dev/api/health | jq
+curl -s https://memorial-api.zackee.dev/api/health | jq
 
 # Generation is not. Expect 401 with code ACCESS_REQUIRED.
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://api.memorial-ai.zackee.dev/api/jobs
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://memorial-api.zackee.dev/api/jobs
 ```
 
 Then in a browser: open `https://memorial-ai.zackee.dev`, sign in with GitHub,
@@ -281,7 +289,7 @@ storage free, zero egress). `video-service` is ready for it — set
 requests to origin" is off on the Access application, or `CORS_ORIGINS` does
 not exactly match the Pages origin (scheme included, no trailing slash).
 
-**Requests succeed from `api.memorial-ai.zackee.dev` directly but fail from the app.** The
+**Requests succeed from `memorial-api.zackee.dev` directly but fail from the app.** The
 two hostnames are in separate Access applications. Put both in one, with eager
 redirect cookies on.
 
@@ -290,8 +298,8 @@ cross-origin. Check that the client was built with `VITE_API_BASE` set and that
 both hostnames sit under the same apex domain.
 
 **`job storage is unavailable`.** Redis is down; check
-`docker compose -f docker-compose.prod.yml logs redis`.
+`docker compose -f docker-compose-prod.yml logs redis`.
 
 **WebSocket connects then immediately disconnects.** The handshake failed Access
 verification. Confirm `CF_ACCESS_AUD` matches the application serving
-`api.memorial-ai.zackee.dev`.
+`memorial-api.zackee.dev`.

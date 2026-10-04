@@ -81,27 +81,27 @@ services:
   # Deliberately not part of the `edge` network: this path is for you, not for
   # app users. Skip this service if you install Tailscale from the UGOS App
   # Center instead. TS_ROUTES should match your home LAN subnet.
-  tailscale:
-    image: tailscale/tailscale:latest
-    container_name: memorial-tailscale
-    hostname: ${TS_HOSTNAME:-memorial-nas}
-    environment:
-      TS_AUTHKEY: ${TS_AUTHKEY:-}
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_ROUTES: ${TS_ROUTES:-}
-      TS_EXTRA_ARGS: --accept-dns=false
-    volumes:
-      - tailscale-state:/var/lib/tailscale
-    devices:
-      - /dev/net/tun
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    # Shares the host network namespace so the tailnet can reach the NAS itself
-    # and (with TS_ROUTES) the rest of your LAN. Incompatible with `networks`.
-    network_mode: host
-    restart: unless-stopped
-    profiles: [tailscale]
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   container_name: memorial-tailscale
+  #   hostname: ${TS_HOSTNAME:-memorial-nas}
+  #   environment:
+  #     TS_AUTHKEY: ${TS_AUTHKEY:-}
+  #     TS_STATE_DIR: /var/lib/tailscale
+  #     TS_ROUTES: ${TS_ROUTES:-}
+  #     TS_EXTRA_ARGS: --accept-dns=false
+  #   volumes:
+  #     - tailscale-state:/var/lib/tailscale
+  #   devices:
+  #     - /dev/net/tun
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - SYS_MODULE
+  #   # Shares the host network namespace so the tailnet can reach the NAS itself
+  #   # and (with TS_ROUTES) the rest of your LAN. Incompatible with `networks`.
+  #   network_mode: host
+  #   restart: unless-stopped
+  #   profiles: [tailscale]
 
 networks:
   # Reachable by cloudflared. Only the API joins this.
@@ -113,4 +113,4 @@ networks:
 
 volumes:
   redis-data:
-  tailscale-state:
+  # tailscale-state:
