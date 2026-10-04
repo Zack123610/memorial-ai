@@ -3,6 +3,19 @@ function num(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function bool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value === '') return fallback;
+  return value.toLowerCase() === 'true';
+}
+
+/** Comma-separated env var -> trimmed, non-empty entries. */
+function list(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 /** Wan i2v refuses a `duration` above this, so neither may VIDEO_DURATION_MAX. */
 const MODEL_MAX_DURATION = 15;
 
@@ -18,6 +31,37 @@ export const config = {
   storageDir: process.env.STORAGE_DIR ?? './storage',
   uploadDir: process.env.UPLOAD_DIR ?? './uploads',
   maxUploadMb: num(process.env.MAX_UPLOAD_MB, 50),
+
+  /**
+   * Browser origins allowed to call the API. Empty means same-origin only,
+   * which is the right default: the deployed client is served from a separate
+   * Cloudflare Pages hostname and must be named explicitly.
+   */
+  corsOrigins: list(process.env.CORS_ORIGINS),
+
+  /**
+   * Cloudflare Access in front of the tunnel. The signed `Cf-Access-Jwt-
+   * Assertion` header is verified against the team's JWKS, so a request that
+   * reaches the origin by any other path is still rejected.
+   */
+  access: {
+    teamDomain: (process.env.CF_ACCESS_TEAM_DOMAIN ?? '').replace(/^https?:\/\//, ''),
+    audience: process.env.CF_ACCESS_AUD ?? '',
+    required: bool(process.env.CF_ACCESS_REQUIRED, false),
+  },
+
+  /** How long a finished job stays readable before Redis evicts it. */
+  jobTtlSeconds: num(process.env.JOB_TTL_SECONDS, 7 * 24 * 60 * 60),
+
+  /**
+   * Generation quotas. Every accepted job spends real DashScope credit, so the
+   * global daily cap is a spend ceiling, not just abuse protection.
+   */
+  quota: {
+    perUserPerHour: num(process.env.QUOTA_USER_HOUR, 5),
+    perUserPerDay: num(process.env.QUOTA_USER_DAY, 10),
+    globalPerDay: num(process.env.QUOTA_GLOBAL_DAY, 25),
+  },
 
   /** Input limits enforced before the pipeline starts. */
   limits: {

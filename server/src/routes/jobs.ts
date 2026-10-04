@@ -3,12 +3,17 @@ import { config } from '../config/env.js';
 import { estimateSpeechSeconds, textBudgetFor } from '../lib/audio.js';
 import { uploadJobFiles } from '../middleware/upload.js';
 import { runPipeline, type PipelineDeps } from '../jobs/pipeline.js';
+import { callerId, type JobQuota } from '../jobs/quota.js';
 import type { TtsLanguage } from '../services/tts.js';
 
 interface UploadedFile {
   buffer: Buffer;
   originalname: string;
   mimetype: string;
+}
+
+export interface JobsRouterDeps extends PipelineDeps {
+  quota: JobQuota;
 }
 
 function trimRequired(value: unknown, field: string): string | { error: string } {
@@ -18,11 +23,11 @@ function trimRequired(value: unknown, field: string): string | { error: string }
   return value.trim();
 }
 
-export function createJobsRouter(deps: PipelineDeps): Router {
+export function createJobsRouter(deps: JobsRouterDeps): Router {
   const router = Router();
 
   // POST /api/jobs — multipart: image, audio, refText, text, language?
-  router.post('/', uploadJobFiles, (req, res) => {
+  router.post('/', uploadJobFiles, async (req, res) => {
     const files = req.files as Record<string, UploadedFile[]> | undefined;
     const image = files?.image?.[0];
     const audio = files?.audio?.[0];
@@ -57,11 +62,28 @@ export function createJobsRouter(deps: PipelineDeps): Router {
       });
     }
 
-    const job = deps.store.create();
-    res.status(202).json({ jobId: job.id, status: job.status });
+    // Charged only once the input is known-good, so a typo does not cost the
+    // caller an attempt. Everything past this point spends DashScope credit.
+    const caller = callerId(req);
+    const quota = await deps.quota.consume(caller);
+    if (!quota.allowed) {
+      if (quota.retryAfterSeconds) res.set('Retry-After', String(quota.retryAfterSeconds));
+      return res.status(429).json({ error: quota.reason, code: 'QUOTA_EXCEEDED' });
+    }
+
+    let jobId: string;
+    try {
+      const job = await deps.store.create();
+      jobId = job.id;
+      res.status(202).json({ jobId: job.id, status: job.status });
+    } catch (err) {
+      await deps.quota.release(caller);
+      console.error('[jobs] could not create job:', err);
+      return res.status(503).json({ error: 'job storage is unavailable, try again shortly' });
+    }
 
     void runPipeline(
-      job.id,
+      jobId,
       {
         image: { buffer: image.buffer, filename: image.originalname, mimetype: image.mimetype },
         audio: { buffer: audio.buffer, filename: audio.originalname, mimetype: audio.mimetype },
@@ -74,14 +96,16 @@ export function createJobsRouter(deps: PipelineDeps): Router {
   });
 
   // GET /api/jobs/:id — status + result video_url (when completed)
-  router.get('/:id', (req, res) => {
-    const job = deps.store.get(req.params.id);
+  router.get('/:id', async (req, res) => {
+    const job = await deps.store.get(req.params.id).catch((err) => {
+      console.error('[jobs] could not read job:', err);
+      return undefined;
+    });
     if (!job) {
-      // In-memory store: jobs vanish on restart. Tell the client explicitly.
       return res.status(404).json({
         error: 'job not found',
         code: 'JOB_EXPIRED',
-        hint: 'Jobs are kept in memory and are lost if the server restarts. Start a new farewell.',
+        hint: `Jobs are kept for ${Math.round(config.jobTtlSeconds / 86_400)} days. Start a new farewell.`,
       });
     }
     res.json(job);

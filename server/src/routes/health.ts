@@ -26,6 +26,13 @@ async function probe(
 export function createHealthRouter(deps: HealthDeps): Router {
   const router = Router();
 
+  // Liveness: is this process serving? Used by the container healthcheck,
+  // which must not restart the API just because a downstream AI service is
+  // unreachable.
+  router.get('/live', (_req, res) => {
+    res.json({ status: 'ok', service: 'memorial-ai-server' });
+  });
+
   router.get('/', async (_req, res) => {
     const [tts, video] = await Promise.all([
       probe('tts', () => deps.tts.health()),

@@ -19,6 +19,7 @@
     "format": "prettier --write \"{client,server}/src/**/*.{ts,tsx,json,css,md}\"",
     "format:check": "prettier --check \"{client,server}/src/**/*.{ts,tsx,json,css,md}\"",
     "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:store": "npm run build:server && node scripts/verify-store-quota.mjs",
     "prepare": "node node_modules/husky/bin.js || true"
   },
   "devDependencies": {

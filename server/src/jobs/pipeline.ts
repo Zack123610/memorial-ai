@@ -56,10 +56,11 @@ function videoDurationFor(clonedAudio: Buffer, text: string, language: TtsLangua
 export async function runPipeline(
   jobId: string,
   input: PipelineInput,
-  { store, tts, video }: PipelineDeps,
+  deps: PipelineDeps,
 ): Promise<void> {
+  const { store, tts, video } = deps;
   try {
-    store.update(jobId, { status: 'voice_cloning', detail: 'Cloning voice' });
+    await store.update(jobId, { status: 'voice_cloning', detail: 'Cloning voice' });
     const cloned = await tts.clone({
       refAudio: input.audio.buffer,
       refAudioFilename: input.audio.filename,
@@ -70,7 +71,7 @@ export async function runPipeline(
     });
 
     const duration = videoDurationFor(cloned.audio, input.text, input.language);
-    store.update(jobId, {
+    await store.update(jobId, {
       status: 'video_generating',
       detail: `Submitting to video service (${duration}s @ ${config.video.resolution})`,
     });
@@ -91,16 +92,58 @@ export async function runPipeline(
       externalId: jobId,
     });
 
-    const { videoUrl, imageUrl, audioUrl } = await video.waitForCompletion(videoJobId, (detail) =>
-      store.update(jobId, { detail }),
-    );
+    // Recorded before polling starts so a restart can pick the job back up.
+    await store.update(jobId, { videoJobId });
 
-    store.update(jobId, { status: 'completed', detail: null, videoUrl, imageUrl, audioUrl });
+    await awaitVideo(jobId, videoJobId, deps);
   } catch (err) {
-    console.error(`[pipeline] job ${jobId} failed:`, err);
-    store.update(jobId, {
-      status: 'failed',
-      error: friendlyPipelineError(err),
-    });
+    await failJob(jobId, err, deps);
   }
+}
+
+/**
+ * Re-attaches to a job that was already handed to the video service before the
+ * process stopped. Generation runs on DashScope, so the result is usually still
+ * waiting to be collected.
+ */
+export async function resumePipeline(
+  jobId: string,
+  videoJobId: string,
+  deps: PipelineDeps,
+): Promise<void> {
+  try {
+    await deps.store.update(jobId, {
+      status: 'video_generating',
+      detail: 'Reconnecting to video service after a restart',
+    });
+    await awaitVideo(jobId, videoJobId, deps);
+  } catch (err) {
+    await failJob(jobId, err, deps);
+  }
+}
+
+async function awaitVideo(
+  jobId: string,
+  videoJobId: string,
+  { store, video }: PipelineDeps,
+): Promise<void> {
+  const { videoUrl, imageUrl, audioUrl } = await video.waitForCompletion(videoJobId, (detail) => {
+    void store.update(jobId, { detail });
+  });
+
+  await store.update(jobId, {
+    status: 'completed',
+    detail: null,
+    videoUrl,
+    imageUrl,
+    audioUrl,
+  });
+}
+
+async function failJob(jobId: string, err: unknown, { store }: PipelineDeps): Promise<void> {
+  console.error(`[pipeline] job ${jobId} failed:`, err);
+  await store.update(jobId, {
+    status: 'failed',
+    error: friendlyPipelineError(err),
+  });
 }

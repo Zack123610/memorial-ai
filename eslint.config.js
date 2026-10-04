@@ -19,6 +19,9 @@ export default [
     plugins: { '@typescript-eslint': tseslint },
     rules: {
       ...tseslint.configs.recommended.rules,
+      // tsc already reports unknown identifiers, and no-undef cannot see
+      // type-only names from the TS libs (RequestInit, CorsOptions, ...).
+      'no-undef': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
     },
