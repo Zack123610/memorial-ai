@@ -1,7 +1,7 @@
 """In-memory job store and the async worker that drives the pipeline.
 
 Pipeline per job:
-    1. upload image (+ optional audio) to S3            -> public URLs
+    1. upload image (+ optional audio) to S3            -> presigned URLs
     2. submit DashScope async job                       -> task_id
     3. poll DashScope until SUCCEEDED / FAILED
     4. download the result and re-upload to S3          -> archived video_url
@@ -142,21 +142,28 @@ class JobManager:
     async def _pipeline(self, job: Job, image: _Upload, audio: _Upload | None) -> None:
         s = self._settings
 
-        # 1. upload inputs to S3
+        # 1. upload inputs to S3, then presign so DashScope can fetch them
+        #    without the objects being publicly readable
         self._set(job, JobStatus.processing, "uploading inputs")
         in_prefix = s.s3_input_prefix
-        job.image_url = await asyncio.to_thread(
+        image_key = await asyncio.to_thread(
             self._storage.put_bytes,
             image.data,
             self._key(in_prefix, job, f"image{image.ext}"),
             image.content_type,
         )
+        job.image_url = await asyncio.to_thread(
+            self._storage.url_for, image_key, ttl=s.s3_input_url_ttl
+        )
         if audio is not None:
-            job.audio_url = await asyncio.to_thread(
+            audio_key = await asyncio.to_thread(
                 self._storage.put_bytes,
                 audio.data,
                 self._key(in_prefix, job, f"audio{audio.ext}"),
                 audio.content_type,
+            )
+            job.audio_url = await asyncio.to_thread(
+                self._storage.url_for, audio_key, ttl=s.s3_input_url_ttl
             )
         job.touch()
 
@@ -208,9 +215,13 @@ class JobManager:
     async def _archive(self, job: Job, video_url: str) -> str:
         """Download the DashScope result and re-upload it to our S3 bucket.
 
-        DashScope-hosted URLs expire; archiving gives callers a stable URL.
+        DashScope-hosted URLs expire within hours; archiving puts the video
+        somewhere we control and hands back a URL good for `s3_output_url_ttl`.
         """
         r = await self._http.get(video_url)
         r.raise_for_status()
         key = self._key(self._settings.s3_output_prefix, job, "video.mp4")
-        return await asyncio.to_thread(self._storage.put_bytes, r.content, key, "video/mp4")
+        await asyncio.to_thread(self._storage.put_bytes, r.content, key, "video/mp4")
+        return await asyncio.to_thread(
+            self._storage.url_for, key, ttl=self._settings.s3_output_url_ttl
+        )

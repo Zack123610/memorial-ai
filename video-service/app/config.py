@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     # Public base used to build URLs handed to DashScope. Defaults to the
     # virtual-hosted bucket endpoint; override if served via CDN/custom domain.
     s3_public_base: str = ""
+    # Point at an S3-compatible endpoint (e.g. Cloudflare R2) to move off AWS.
+    s3_endpoint_url: str = ""
+    # Hand out short-lived presigned GETs instead of relying on public objects.
+    # Turn off only when the bucket is intentionally public behind a CDN.
+    s3_presign: bool = True
+    # Inputs only need to survive long enough for DashScope to fetch them.
+    s3_input_url_ttl: int = 3600
+    # Outputs are linked from the job page. 7 days is the SigV4 maximum, and is
+    # matched by the Express server's JOB_TTL_SECONDS so both expire together.
+    s3_output_url_ttl: int = 7 * 24 * 3600
     # Credentials: leave blank to use the default AWS credential chain
     # (env, shared config, instance role).
     aws_access_key_id: str = ""
