@@ -24,7 +24,7 @@ export function friendlyPipelineError(err: unknown): string {
     lower.includes('mismatched') ||
     lower.includes('fallback')
   ) {
-    return 'Voice sample was rejected — use 3–60s of clean speech that matches the transcript.';
+    return 'Voice sample was rejected — use 5–60s of clean speech that matches the transcript.';
   }
 
   if (lower.includes('timed out') || lower.includes('timeout')) {

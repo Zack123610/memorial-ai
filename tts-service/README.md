@@ -2,7 +2,7 @@
 
 Memorial AI's voice-cloning service. Turns a **reference voice sample** + its
 **transcript** + **target text** into speech in that voice, using Aliyun
-**DashScope Qwen3-TTS voice cloning**. Runs on `:8200`.
+**DashScope Qwen-Audio-TTS voice cloning**. Runs on `:8200`.
 
 FastAPI + `uv`, Python 3.12.
 
@@ -21,11 +21,16 @@ bound to the TTS model it was enrolled for:
 POST /clone                    backend uploads ref_audio + ref_text + text
    │
    ├─ 1. enroll the voice        POST /services/audio/tts/customization
-   │      (base64 sample)        model=qwen-voice-enrollment → voice name
-   ├─ 2. synthesize              POST /services/aigc/multimodal-generation/generation
-   │                             model=qwen3-tts-vc-… + voice → temporary audio URL
+   │      (base64 sample)        model=voice-enrollment → voice_id
+   ├─ 2. synthesize              POST /services/audio/tts/SpeechSynthesizer
+   │                             model=qwen-audio-3.0-tts-flash + voice → temporary audio URL
    └─ 3. download the audio and return the bytes
 ```
+
+> The `qwen3-tts-vc-*` family plus `qwen-voice-enrollment` was retired on
+> 2026-10-10. Cloning now goes through the `voice-enrollment` service bound to
+> `qwen-audio-3.0-tts-flash`; the request payload and synthesis endpoint both
+> changed with it.
 
 Enrollment costs a call and a voice slot, so voices are **cached in memory** by a
 digest of the reference sample and reused for `TTS_VOICE_CACHE_TTL`. Voices this
@@ -40,12 +45,12 @@ the response body rather than hosted.
 
 ### `POST /clone` (multipart/form-data)
 
-| Field       | Type   | Notes                                             |
-| ----------- | ------ | ------------------------------------------------- |
-| `ref_audio` | file   | WAV / MP3 / M4A, 3–60s, mono, ≤7 MB               |
-| `ref_text`  | string | Transcript of `ref_audio` (DashScope verifies it) |
-| `text`      | string | Target text to synthesize                         |
-| `language`  | string | `English` (default), `Chinese`, … or `Auto`       |
+| Field       | Type   | Notes                                                                        |
+| ----------- | ------ | ---------------------------------------------------------------------------- |
+| `ref_audio` | file   | WAV / MP3 / M4A, 5–60s, mono, ≤7 MB                                          |
+| `ref_text`  | string | Transcript of `ref_audio` (not sent to DashScope; kept for the API contract) |
+| `text`      | string | Target text to synthesize                                                    |
+| `language`  | string | `English` (default), `Chinese`, … or `Auto`                                  |
 
 Supported languages: Chinese, English, German, Italian, Portuguese, Spanish,
 Japanese, Korean, French, Russian, plus `Auto` for detection.
@@ -56,7 +61,7 @@ Returns the rendered audio (`audio/wav`) with these response headers:
 - `X-Elapsed-Seconds` — enrollment + synthesis + download time
 - `X-Ref-Duration-Seconds` — measured length of the reference audio
 - `X-Language` — language used for synthesis
-- `X-Voice` — DashScope voice name used
+- `X-Voice` — DashScope voice ID used
 - `X-Voice-Cached` — `true` when an existing enrollment was reused
 - `X-Voice-Fallback` — present when DashScope degraded the clone (poor sample)
 - `X-Dashscope-Request-Id` — for support / debugging
@@ -79,8 +84,8 @@ curl -sS -X POST http://localhost:8200/clone \
 {
   "status": "ok",
   "provider": "dashscope",
-  "model": "qwen3-tts-vc-2026-01-22",
-  "enrollment_model": "qwen-voice-enrollment",
+  "model": "qwen-audio-3.0-tts-flash",
+  "enrollment_model": "voice-enrollment",
   "api_key_configured": true,
   "cached_voices": 0
 }
@@ -123,16 +128,16 @@ uv run uvicorn app.main:app --host $TTS_HOST --port $TTS_PORT
 
 ## Reference audio guidance
 
-DashScope's requirements for the cloning sample:
+Qwen-Audio-TTS requirements for the cloning sample:
 
-- 10–20s recommended, 60s maximum, at least 3s of continuous clear speech
-- mono, 24 kHz or higher, no background music or noise
+- 10–20s recommended, 60s maximum, at least 5s of continuous clear speech
+- mono, 16 kHz or higher, no background music or noise
 - WAV (16-bit), MP3 or M4A, under 10 MB once base64-encoded (`TTS_MAX_REF_BYTES`
   caps the raw upload at 7 MB to leave room for that overhead)
 
-If the audio is noisy or does not match `ref_text`, DashScope may clone in
-_fallback mode_ — the request still succeeds but quality drops, so the service
-logs a warning and sets `X-Voice-Fallback`.
+The reference transcript (`ref_text`) is no longer verified by the cloning API
+— it is kept in the `POST /clone` contract for the UI and error messaging, and
+is not forwarded to DashScope.
 
 ## Scripts
 

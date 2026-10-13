@@ -27,7 +27,7 @@ Memorial AI creates hyper-personalized farewell videos of the deceased, enabling
 - **Frontend:** React 18 + Vite + TailwindCSS
 - **Backend:** Node.js + Express orchestrating the AI services over HTTP, with job state in Redis
 - **AI Pipeline:** Two standalone FastAPI microservices — [`tts-service`](./tts-service/README.md) and [`video-service`](./video-service/README.md)
-- **Voice Cloning:** Aliyun DashScope Qwen3-TTS voice cloning (`qwen-voice-enrollment` + `qwen3-tts-vc`) — clones a voice from a reference sample; see [`tts-service/`](./tts-service/README.md)
+- **Voice Cloning:** Aliyun DashScope Qwen-Audio-TTS voice cloning (`voice-enrollment` + `qwen-audio-3.0-tts-flash`) — clones a voice from a reference sample; see [`tts-service/`](./tts-service/README.md)
 - **Video Generation:** Aliyun DashScope Wan i2v (`wan2.6-i2v-flash`; image+audio → talking head) — see [`video-service/`](./video-service/README.md)
 - **Lip Sync:** Built into Wan i2v — audio-driven, no separate lip-sync model
 - **Realtime:** Socket.IO for progress updates

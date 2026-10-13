@@ -56,12 +56,10 @@ async def clone(
         raise HTTPException(400, str(exc)) from exc
 
     language_code = LANGUAGE_CODES.get(language)
-    enrollment_text = ref_text.strip() if settings.tts_send_ref_text else None
     cache_key = VoiceRegistry.key(
         audio_digest=reference.digest,
         target_model=settings.tts_dashscope_model,
         language_code=language_code,
-        ref_text=enrollment_text or "",
     )
 
     started = time.perf_counter()
@@ -70,9 +68,10 @@ async def clone(
             cache_key=cache_key,
             audio_data_uri=reference.to_data_uri(),
             language_code=language_code,
-            ref_text=enrollment_text,
         )
-        synthesis = await client.synthesize(text=text, voice=voice.name, language_type=language)
+        synthesis = await client.synthesize(
+            text=text, voice=voice.name, language_code=language_code
+        )
         data, content_type = await client.fetch_audio(synthesis.audio_url)
     except DashScopeError as exc:
         raise HTTPException(502, f"dashscope: {exc}") from exc

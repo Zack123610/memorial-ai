@@ -67,7 +67,7 @@ export const config = {
   limits: {
     maxTextChars: num(process.env.MAX_TEXT_CHARS, 800),
     maxRefTextChars: num(process.env.MAX_REF_TEXT_CHARS, 500),
-    minAudioSeconds: num(process.env.MIN_AUDIO_SECONDS, 3),
+    minAudioSeconds: num(process.env.MIN_AUDIO_SECONDS, 5),
     maxAudioSeconds: num(process.env.MAX_AUDIO_SECONDS, 60),
   },
 

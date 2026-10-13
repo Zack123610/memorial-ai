@@ -25,26 +25,24 @@ class Settings(BaseSettings):
     tts_host: str = "127.0.0.1"
     tts_port: int = 8200
 
-    # --- DashScope (Aliyun) Qwen3-TTS voice cloning ---
+    # --- DashScope (Aliyun) Qwen-Audio-TTS voice cloning ---
     dashscope_api_key: str = ""
     tts_dashscope_base: str = "https://dashscope.aliyuncs.com"
-    # The enrollment API clones a voice; the TTS model then speaks with it.
-    # The two are bound together: target_model at enrollment must equal the
-    # model used for synthesis, or synthesis fails.
-    tts_enrollment_model: str = "qwen-voice-enrollment"
-    tts_dashscope_model: str = "qwen3-tts-vc-2026-01-22"
-    # Keyword embedded in generated voice names (letters/digits/underscore, <=16 chars).
+    # The voice-enrollment service clones a voice; the TTS model then speaks
+    # with it. The two are bound together: target_model at enrollment must
+    # equal the model used for synthesis, or synthesis fails.
+    tts_enrollment_model: str = "voice-enrollment"
+    tts_dashscope_model: str = "qwen-audio-3.0-tts-flash"
+    # Keyword embedded in generated voice IDs (letters/digits/underscore).
     tts_voice_prefix: str = "memorial"
 
     # --- Reference audio constraints ---
-    # DashScope recommends 10-20s of clean mono speech, 60s max. The payload is
-    # base64-encoded (~33% larger) and the encoded form must stay under 10 MB.
-    tts_min_ref_seconds: float = 3.0
+    # Qwen-Audio-TTS requires at least 5s of continuous clear speech,
+    # recommends 10-20s, and caps the sample at 60s / 10 MB. The payload is
+    # base64-encoded (~33% larger), so the raw upload is capped below that.
+    tts_min_ref_seconds: float = 5.0
     tts_max_ref_seconds: float = 60.0
     tts_max_ref_bytes: int = 7 * 1024 * 1024
-    # Send the reference transcript so DashScope can verify it matches the
-    # audio. Disable if legitimate samples are rejected as mismatched.
-    tts_send_ref_text: bool = True
 
     # --- Enrollment reuse ---
     # Cloning the same reference twice wastes a voice slot, so enrollments are

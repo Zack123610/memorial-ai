@@ -2,7 +2,7 @@
 export const CREATE_LIMITS = {
   maxTextChars: 800,
   maxRefTextChars: 500,
-  minAudioSeconds: 3,
+  minAudioSeconds: 5,
   maxAudioSeconds: 60,
   /** VIDEO_DURATION_MAX: the video lasts as long as the spoken farewell. */
   maxSpeechSeconds: 15,

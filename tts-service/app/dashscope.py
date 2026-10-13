@@ -1,14 +1,18 @@
-"""Async DashScope client for Qwen3-TTS voice cloning + synthesis.
+"""Async DashScope client for Qwen-Audio-TTS voice cloning + synthesis.
 
 Two DashScope APIs are involved:
 
     POST /api/v1/services/audio/tts/customization
-        model=qwen-voice-enrollment — clone a voice from reference audio,
-        returns a voice name bound to a target TTS model.
+        model=voice-enrollment — clone a voice from reference audio
+        (action=create_voice), returns a voice_id bound to a target TTS model.
 
-    POST /api/v1/services/aigc/multimodal-generation/generation
+    POST /api/v1/services/audio/tts/SpeechSynthesizer
         model=<target model> — synthesize text with that voice, returns a
         temporary URL to the rendered audio.
+
+The qwen3-tts-vc-* family this service previously used was retired on
+2026-10-10; cloning now goes through voice-enrollment and the voice is bound
+to qwen-audio-3.0-tts-flash in the same enrollment/synthesis pairing.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from .config import Settings
 logger = logging.getLogger(__name__)
 
 _CUSTOMIZATION_PATH = "/api/v1/services/audio/tts/customization"
-_GENERATION_PATH = "/api/v1/services/aigc/multimodal-generation/generation"
+_SYNTHESIS_PATH = "/api/v1/services/audio/tts/SpeechSynthesizer"
 
 
 class DashScopeError(RuntimeError):
@@ -74,26 +78,25 @@ class DashScopeTtsClient:
         *,
         audio_data_uri: str,
         language_code: str | None,
-        ref_text: str | None,
     ) -> EnrolledVoice:
         """Clone a voice from reference audio and return its DashScope handle."""
         payload: dict = {
             "model": self._settings.tts_enrollment_model,
             "input": {
-                "action": "create",
+                "action": "create_voice",
                 "target_model": self._settings.tts_dashscope_model,
-                "preferred_name": self._settings.tts_voice_prefix,
-                "audio": {"data": audio_data_uri},
+                "prefix": self._settings.tts_voice_prefix,
+                # voice-enrollment accepts a public URL or a base64 data URI;
+                # inline keeps the reference sample off the internet.
+                "url": audio_data_uri,
             },
         }
         if language_code:
-            payload["input"]["language"] = language_code
-        if ref_text:
-            payload["input"]["text"] = ref_text
+            payload["input"]["language_hints"] = [language_code]
 
         body = await self._post(_CUSTOMIZATION_PATH, payload)
         output = body.get("output", {})
-        voice = output.get("voice")
+        voice = output.get("voice_id") or output.get("voice")
         if not voice:
             raise DashScopeError(f"enrollment returned no voice: {body}")
         return EnrolledVoice(
@@ -106,17 +109,25 @@ class DashScopeTtsClient:
     async def delete_voice(self, voice: str) -> None:
         payload = {
             "model": self._settings.tts_enrollment_model,
-            "input": {"action": "delete", "voice": voice},
+            "input": {"action": "delete_voice", "voice_id": voice},
         }
         await self._post(_CUSTOMIZATION_PATH, payload)
 
-    async def synthesize(self, *, text: str, voice: str, language_type: str) -> Synthesis:
+    async def synthesize(self, *, text: str, voice: str, language_code: str | None) -> Synthesis:
         """Render ``text`` in ``voice``; the returned URL is short-lived (~24h)."""
-        payload = {
+        payload: dict = {
             "model": self._settings.tts_dashscope_model,
-            "input": {"text": text, "voice": voice, "language_type": language_type},
+            "input": {
+                "text": text,
+                "voice": voice,
+                "format": "wav",
+                "sample_rate": 24000,
+            },
         }
-        body = await self._post(_GENERATION_PATH, payload)
+        if language_code:
+            payload["input"]["language_hints"] = [language_code]
+
+        body = await self._post(_SYNTHESIS_PATH, payload)
         audio = body.get("output", {}).get("audio", {})
         url = audio.get("url")
         if not url:

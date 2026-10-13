@@ -44,17 +44,17 @@ The AI pipeline runs as two standalone **FastAPI microservices** — [`tts-servi
 
 ## Tech Stack
 
-| Layer            | Technology                                                                       | Purpose                                                             |
-| ---------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Frontend         | React 18 + Vite + TailwindCSS                                                    | SPA with upload wizard, progress tracking, video preview            |
-| Backend          | Node.js + Express + Socket.IO                                                    | REST API, Redis-backed job store + quotas, AI-service orchestration |
-| AI Pipeline      | FastAPI microservices (`tts-service`, `video-service`)                           | Standalone Python services the backend calls over HTTP              |
-| Voice Cloning    | Aliyun DashScope Qwen3-TTS (`qwen-voice-enrollment` + `qwen3-tts-vc`)            | Cloud voice cloning from a short reference sample                   |
-| Video Generation | Aliyun DashScope **Wan2.6 i2v** (`wan2.6-i2v-flash`) → self-hosted Wan (Phase 5) | Audio-driven image-to-video talking-head generation                 |
-| Lip Sync         | Built into Wan2.6 i2v (audio-driven)                                             | No separate model; the driving audio animates the mouth             |
-| Job state        | Redis (`ioredis`)                                                                | Job records with TTL, restart recovery, quota windows               |
-| Storage          | AWS S3 — private objects behind presigned URLs (R2-ready)                        | Uploaded inputs + archived outputs                                  |
-| Realtime         | Socket.IO                                                                        | Progress updates from backend to frontend                           |
+| Layer            | Technology                                                                        | Purpose                                                             |
+| ---------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Frontend         | React 18 + Vite + TailwindCSS                                                     | SPA with upload wizard, progress tracking, video preview            |
+| Backend          | Node.js + Express + Socket.IO                                                     | REST API, Redis-backed job store + quotas, AI-service orchestration |
+| AI Pipeline      | FastAPI microservices (`tts-service`, `video-service`)                            | Standalone Python services the backend calls over HTTP              |
+| Voice Cloning    | Aliyun DashScope Qwen-Audio-TTS (`voice-enrollment` + `qwen-audio-3.0-tts-flash`) | Cloud voice cloning from a short reference sample                   |
+| Video Generation | Aliyun DashScope **Wan2.6 i2v** (`wan2.6-i2v-flash`) → self-hosted Wan (Phase 5)  | Audio-driven image-to-video talking-head generation                 |
+| Lip Sync         | Built into Wan2.6 i2v (audio-driven)                                              | No separate model; the driving audio animates the mouth             |
+| Job state        | Redis (`ioredis`)                                                                 | Job records with TTL, restart recovery, quota windows               |
+| Storage          | AWS S3 — private objects behind presigned URLs (R2-ready)                         | Uploaded inputs + archived outputs                                  |
+| Realtime         | Socket.IO                                                                         | Progress updates from backend to frontend                           |
 
 ---
 
@@ -167,7 +167,7 @@ Supporting code: `services/api.ts` (typed `createJob`/`getJob`), `services/socke
 | Task               | Details                                                                                                                              | Status |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------ |
 | End-to-end testing | `npm run test:e2e` — unit checks + API validation; `E2E_LIVE=1` runs full upload → poll → `videoUrl`                                 | ✅     |
-| Edge cases         | Max farewell/ref-text length; client audio duration probe (3–60s); face-related DashScope failures mapped to a friendly photo hint   | ✅     |
+| Edge cases         | Max farewell/ref-text length; client audio duration probe (5–60s); face-related DashScope failures mapped to a friendly photo hint   | ✅     |
 | Performance        | Video duration derived from cloned audio (clamped 5–10s); TTS enrollment cache already in place; result-video content cache deferred | ✅     |
 | Quality tuning     | Express forwards `VIDEO_RESOLUTION` / duration / prompt_extend / watermark; talking-head prompt tightened for lip sync               | ✅     |
 | Demo preparation   | Checklist + script in [`docs/DEMO.md`](./docs/DEMO.md) (recording left to the presenter)                                             | ✅     |

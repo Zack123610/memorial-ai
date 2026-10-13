@@ -2,8 +2,8 @@
 
 Cloning is a separate, quota-limited DashScope call, so the same reference
 sample should not be enrolled twice. Entries are keyed by a digest of the
-reference audio (plus the transcript and language that were sent with it) and
-expire after ``TTS_VOICE_CACHE_TTL``.
+reference audio plus the target model and language hint, and expire after
+``TTS_VOICE_CACHE_TTL``.
 
 The cache lives in process memory: restarting the service forgets the voices,
 which is why enrollments are deleted on shutdown rather than left orphaned in
@@ -46,9 +46,9 @@ class VoiceRegistry:
 
     @staticmethod
     def key(
-        *, audio_digest: str, target_model: str, language_code: str | None, ref_text: str
+        *, audio_digest: str, target_model: str, language_code: str | None
     ) -> str:
-        raw = "|".join([audio_digest, target_model, language_code or "-", ref_text])
+        raw = "|".join([audio_digest, target_model, language_code or "-"])
         return hashlib.sha256(raw.encode()).hexdigest()
 
     async def get_or_create(
@@ -57,7 +57,6 @@ class VoiceRegistry:
         cache_key: str,
         audio_data_uri: str,
         language_code: str | None,
-        ref_text: str | None,
     ) -> tuple[EnrolledVoice, bool]:
         """Return the voice for ``cache_key`` and whether it came from the cache."""
         lock = self._locks.setdefault(cache_key, asyncio.Lock())
@@ -70,7 +69,6 @@ class VoiceRegistry:
             voice = await self._client.create_voice(
                 audio_data_uri=audio_data_uri,
                 language_code=language_code,
-                ref_text=ref_text,
             )
             if voice.fallback_mode:
                 logger.warning(

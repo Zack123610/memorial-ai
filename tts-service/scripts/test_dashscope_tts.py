@@ -1,11 +1,11 @@
-"""Test DashScope Qwen3-TTS voice cloning end-to-end, without running the service.
+"""Test DashScope Qwen-Audio-TTS voice cloning end-to-end, without running the service.
 
 Usage:
     uv run python scripts/test_dashscope_tts.py <ref_audio> <target_text> [ref_text] [language]
 
 Flow:
     1. POST /api/v1/services/audio/tts/customization  → clone a voice (base64 sample)
-    2. POST /api/v1/services/aigc/multimodal-generation/generation → synthesize
+    2. POST /api/v1/services/audio/tts/SpeechSynthesizer → synthesize
     3. download the rendered audio to storage/test_dashscope_tts/
     4. delete the cloned voice again (DashScope caps how many you may hold)
 
@@ -28,7 +28,7 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = SERVICE_ROOT / "storage" / "test_dashscope_tts"
 
 CUSTOMIZATION_PATH = "/api/v1/services/audio/tts/customization"
-GENERATION_PATH = "/api/v1/services/aigc/multimodal-generation/generation"
+SYNTHESIS_PATH = "/api/v1/services/audio/tts/SpeechSynthesizer"
 
 LANGUAGE_CODES = {
     "Chinese": "zh",
@@ -75,7 +75,9 @@ def main() -> int:
 
     ref_path = Path(sys.argv[1])
     target_text = sys.argv[2]
-    ref_text = sys.argv[3] if len(sys.argv) > 3 else ""
+    # Kept as a positional arg for CLI compatibility; the cloning API no
+    # longer takes a transcript.
+    _ref_text = sys.argv[3] if len(sys.argv) > 3 else ""
     language = sys.argv[4] if len(sys.argv) > 4 else "English"
 
     if not ref_path.exists():
@@ -89,8 +91,8 @@ def main() -> int:
         return 2
 
     base = os.environ.get("TTS_DASHSCOPE_BASE", "https://dashscope.aliyuncs.com").rstrip("/")
-    enrollment_model = os.environ.get("TTS_ENROLLMENT_MODEL", "qwen-voice-enrollment")
-    model = os.environ.get("TTS_DASHSCOPE_MODEL", "qwen3-tts-vc-2026-01-22")
+    enrollment_model = os.environ.get("TTS_ENROLLMENT_MODEL", "voice-enrollment")
+    model = os.environ.get("TTS_DASHSCOPE_MODEL", "qwen-audio-3.0-tts-flash")
     prefix = os.environ.get("TTS_VOICE_PREFIX", "memorial")
 
     print(f"model:     {model}")
@@ -98,15 +100,14 @@ def main() -> int:
     print(f"language:  {language}")
 
     enroll_input: dict = {
-        "action": "create",
+        "action": "create_voice",
         "target_model": model,
-        "preferred_name": prefix,
-        "audio": {"data": data_uri(ref_path)},
+        "prefix": prefix,
+        # voice-enrollment accepts a public URL or a base64 data URI.
+        "url": data_uri(ref_path),
     }
     if language in LANGUAGE_CODES:
-        enroll_input["language"] = LANGUAGE_CODES[language]
-    if ref_text:
-        enroll_input["text"] = ref_text
+        enroll_input["language_hints"] = [LANGUAGE_CODES[language]]
 
     voice: str | None = None
     with httpx.Client(timeout=120.0) as client:
@@ -117,7 +118,7 @@ def main() -> int:
                 client, base, api_key, CUSTOMIZATION_PATH,
                 {"model": enrollment_model, "input": enroll_input},
             )
-            voice = body["output"]["voice"]
+            voice = body["output"]["voice_id"]
             print(f"     voice: {voice} ({time.perf_counter() - t0:.1f}s)")
             if body["output"].get("fallback_mode"):
                 reason = body["output"].get("fallback_reason", "unspecified")
@@ -125,12 +126,17 @@ def main() -> int:
 
             print("2/4 synthesizing…")
             t1 = time.perf_counter()
+            synth_input: dict = {
+                "text": target_text,
+                "voice": voice,
+                "format": "wav",
+                "sample_rate": 24000,
+            }
+            if language in LANGUAGE_CODES:
+                synth_input["language_hints"] = [LANGUAGE_CODES[language]]
             body = post(
-                client, base, api_key, GENERATION_PATH,
-                {
-                    "model": model,
-                    "input": {"text": target_text, "voice": voice, "language_type": language},
-                },
+                client, base, api_key, SYNTHESIS_PATH,
+                {"model": model, "input": synth_input},
             )
             audio_url = body["output"]["audio"]["url"]
             print(f"     audio_url: {audio_url[:100]}… ({time.perf_counter() - t1:.1f}s)")
@@ -148,7 +154,10 @@ def main() -> int:
                 with httpx.Client(timeout=60.0) as cleanup:
                     post(
                         cleanup, base, api_key, CUSTOMIZATION_PATH,
-                        {"model": enrollment_model, "input": {"action": "delete", "voice": voice}},
+                        {
+                            "model": enrollment_model,
+                            "input": {"action": "delete_voice", "voice_id": voice},
+                        },
                     )
 
     print("done.")

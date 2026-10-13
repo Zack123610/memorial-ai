@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-# Languages Qwen3-TTS voice cloning supports, mapped from the ``language_type``
-# value used at synthesis to the ISO code the enrollment API expects.
+# Languages Qwen-Audio-TTS supports, mapped from the request's ``language``
+# value to the ISO code the enrollment and synthesis APIs expect as
+# ``language_hints``.
 LANGUAGE_CODES: dict[str, str] = {
     "Chinese": "zh",
     "English": "en",
