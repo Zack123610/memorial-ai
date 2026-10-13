@@ -183,6 +183,14 @@ with open(os.environ["DETACH_ENV_FILE"]) as f:
         if line and not line.startswith("#") and "=" in line:
             env.pop(line.split("=", 1)[0].strip(), None)
 
+# Drop proxy settings inherited from the launching shell. The services dial
+# DashScope and S3 directly; a shell-level proxy (VPN tooling, CI, an agent
+# sandbox) is silently inherited by the daemon and then breaks every outbound
+# call with "connection attempts failed" once its session is gone.
+for key in list(env):
+    if key.lower().endswith("_proxy"):
+        env.pop(key, None)
+
 log = open(os.environ["DETACH_LOG"], "ab", buffering=0)
 proc = subprocess.Popen(
     sys.argv[1:], cwd=os.environ["DETACH_DIR"], env=env,
